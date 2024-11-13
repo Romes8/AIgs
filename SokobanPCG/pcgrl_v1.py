@@ -1,3 +1,5 @@
+# first poor attempt
+
 import numpy as np
 from jumanji.environments import sokoban
 import matplotlib.image as mpimg  
@@ -17,22 +19,7 @@ from tqdm import tqdm
 import pickle
 import os
 
-assets = {
-    'empty': np.zeros((32, 32, 3), dtype=np.uint8),
-    'wall': mpimg.imread('assets/wall.png'),
-    'target': mpimg.imread('assets/box_target.png'),
-    'agent': mpimg.imread('assets/agent.png'),
-    'box': mpimg.imread('assets/box.png'),
-}
-
-GRID_SIZE = (10, 10) 
-OBJECT_TYPES = {
-    'empty': 0,
-    'wall': 1,
-    'target': 2,
-    'agent': 3,
-    'box': 4
-}
+from utils import OBJECT_TYPES, GRID_SIZE, assets, save_checkpoint, load_checkpoint
 
 # save/load function
 def save_checkpoint(file_path, params, target_params, opt_state):
@@ -251,7 +238,7 @@ memory = deque(maxlen=10000)
 generated_levels = []
 
 # training Loop
-episodes = 500
+episodes = 50
 for episode in tqdm(range(episodes)):
     obs = env.reset()
     done = False

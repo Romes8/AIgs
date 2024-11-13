@@ -7,8 +7,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import random
 from sklearn.decomposition import PCA
-
+import pickle
+import os
+import random as py_random
 # Define the object type mappings for encoding levels
+GRID_SIZE = (10, 10) 
+
 OBJECT_TYPES = {
     'empty': 0,
     'wall': 1,
@@ -16,7 +20,6 @@ OBJECT_TYPES = {
     'agent': 3,
     'box': 4
 }
-
 # Load the assets (images)
 assets = {
     'empty': np.zeros((32, 32, 3), dtype=np.uint8),
@@ -26,7 +29,30 @@ assets = {
     'box': mpimg.imread('assets/box.png'),
 }
 
+def save_checkpoint(file_path, params, target_params, opt_state):
+    with open(file_path, 'wb') as f:
+        pickle.dump({'params': params, 'target_params': target_params, 'opt_state': opt_state}, f)
+    print(f"Checkpoint saved to {file_path}")
 
+def load_checkpoint(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as f:
+            checkpoint = pickle.load(f)
+        print(f"Checkpoint loaded from {file_path}")
+        return checkpoint['params'], checkpoint['target_params'], checkpoint['opt_state']
+    else:
+        print(f"No checkpoint found at {file_path}. Starting from scratch.")
+        return None, None, None
+
+def random_populate_grid(self):
+    grid = np.zeros(self.grid_size, dtype=int)
+    # Populate grid with random placement of objects
+    for x in range(self.grid_size[0]):
+        for y in range(self.grid_size[1]):
+            tile_type = py_random.choice(list(OBJECT_TYPES.values()))
+            grid[x, y] = tile_type
+    return grid
+    
 # Function to encode a level into a 3D tensor
 def encode_level(grid):
     encoded = jnp.zeros((10, 10, 5), dtype=jnp.uint8)  # 10x10 grid, 5 channels
@@ -71,16 +97,34 @@ def map_to_rgb(level_classes):
     return rgb_image
 
 def map_level_to_image(level_classes):
-    image_grid = np.zeros((level_classes.shape[0] * 16, level_classes.shape[1] * 16, 3), dtype=np.uint8)
+    image_grid = np.zeros((level_classes.shape[0] * 32, level_classes.shape[1] * 32, 3), dtype=np.uint8)
     
     for i in range(level_classes.shape[0]):
         for j in range(level_classes.shape[1]):
             object_type = level_classes[i, j]
             asset_image = assets[list(OBJECT_TYPES.keys())[object_type]]
             
-            image_grid[i * 16:(i + 1) * 16, j * 16:(j + 1) * 16, :] = asset_image[:, :, :3] 
+            if asset_image.dtype != np.uint8:
+                asset_image = (asset_image * 255).astype(np.uint8)
+            
+            if asset_image.shape[0] != 32 or asset_image.shape[1] != 32:
+                asset_image = np.array(Image.fromarray(asset_image).resize((32, 32)))
+
+            image_grid[i * 32:(i + 1) * 32, j * 32:(j + 1) * 32, :] = asset_image[:, :, :3]
     
     return image_grid
+
+# def map_level_to_image(level_classes):
+#     image_grid = np.zeros((level_classes.shape[0] * 16, level_classes.shape[1] * 16, 3), dtype=np.uint8)
+    
+#     for i in range(level_classes.shape[0]):
+#         for j in range(level_classes.shape[1]):
+#             object_type = level_classes[i, j]
+#             asset_image = assets[list(OBJECT_TYPES.keys())[object_type]]
+            
+#             image_grid[i * 16:(i + 1) * 16, j * 16:(j + 1) * 16, :] = asset_image[:, :, :3] 
+    
+#     return image_grid
 
 # Visualization of Decoded Levels
 def visualize_decoded_level(model, params, original_level, original_shape):
