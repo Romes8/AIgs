@@ -4,31 +4,49 @@ import torch.optim as optim
 import os
 import numpy as np
 from collections import deque
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
 
 class SokobanNCA(nn.Module):
-    def __init__(self, hidden_channels=32):
+    def __init__(self, hidden_channels=64):  # Increased hidden channels
         super().__init__()
         
-        # Increase network capacity and add more layers
-        self.perception = nn.Conv2d(5, hidden_channels, 3, padding=1)
+        # Enhanced perception layer
+        self.perception = nn.Sequential(
+            nn.Conv2d(5, hidden_channels, 3, padding=1),
+            nn.BatchNorm2d(hidden_channels),
+            nn.ReLU()
+        )
+        
+        # Enhanced update network
         self.update = nn.Sequential(
             nn.Conv2d(hidden_channels, hidden_channels, 3, padding=1),
+            nn.BatchNorm2d(hidden_channels),
             nn.ReLU(),
             nn.Conv2d(hidden_channels, hidden_channels, 3, padding=1),
+            nn.BatchNorm2d(hidden_channels),
             nn.ReLU(),
-            nn.Conv2d(hidden_channels, hidden_channels, 1),
+            nn.Conv2d(hidden_channels, hidden_channels, 3, padding=1),
+            nn.BatchNorm2d(hidden_channels),
             nn.ReLU(),
-            nn.Conv2d(hidden_channels, 5, 1)
+            nn.Conv2d(hidden_channels, 5, 1),
+            nn.BatchNorm2d(5)
         )
+        
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, x, steps=15):
-        # Increase steps for more refined outputs
+    def forward(self, x, steps=25):  # Increased steps
+        batch_size = x.shape[0] if len(x.shape) > 3 else 1
+        if len(x.shape) == 3:
+            x = x.unsqueeze(0)
+            
+        original_x = x  # Store original input
         for _ in range(steps):
             dx = self.perception(x)
             dx = self.update(dx)
-            x = self.softmax(x + dx)
-        return x
+            x = self.softmax(original_x + 0.1 * dx)  # Reduced update rate
+            
+        return x.squeeze(0) if batch_size == 1 else x
 
 def load_levels(directory):
     """Load and convert Sokoban levels to tensor format"""
@@ -214,82 +232,127 @@ def validate_level(tensor):
     return valid
 
 def level_constraints_loss(output, target):
-    """Enhanced loss function with solvability consideration"""
-    # Base MSE loss
-    mse_loss = nn.MSELoss()(output, target)
+    """Enhanced loss function with better weighted constraints"""
+    # Base loss with higher weight on important features
+    mse_loss = nn.MSELoss()(output, target) * 2.0
     
     # Penalties for constraint violations
-    player_count = torch.sum(output[2] > 0.5)
-    box_count = torch.sum(output[3] > 0.5)
-    goal_count = torch.sum(output[4] > 0.5)
+    player_count = torch.sum(output[:, 2], dim=(1,2))
+    box_count = torch.sum(output[:, 3], dim=(1,2))
+    goal_count = torch.sum(output[:, 4], dim=(1,2))
     
-    # Penalties
-    player_penalty = torch.abs(player_count - 1) * 0.1
-    box_goal_diff_penalty = torch.abs(box_count - goal_count) * 0.1
-    count_penalty = torch.max(torch.tensor(0.0), box_count - 4) * 0.1
+    # Stronger penalties
+    player_penalty = torch.mean(torch.abs(player_count - 1)) * 0.5
+    box_goal_diff_penalty = torch.mean(torch.abs(box_count - goal_count)) * 0.5
+    count_penalty = torch.mean(torch.relu(box_count - 4)) * 0.3
     
-    # Add spacing penalty to encourage more spread out elements
-    spacing_penalty = torch.mean(torch.max(output[:, 1:-1, 1:-1], dim=0)[0]) * 0.05
+    # Spatial coherence penalty
+    wall_penalty = torch.mean(torch.abs(
+        output[:, 1, 1:-1, 1:-1] - output[:, 1, :-2, 1:-1]
+    )) * 0.2
     
-    return mse_loss + player_penalty + box_goal_diff_penalty + count_penalty + spacing_penalty
+    # Element distribution penalty
+    distribution_penalty = torch.mean(torch.abs(
+        output[:, 2:, 1:-1, 1:-1].sum(dim=1) - 1
+    )) * 0.3
+    
+    # Combine all penalties into a single scalar value
+    total_loss = (mse_loss + 
+                 player_penalty + 
+                 box_goal_diff_penalty + 
+                 count_penalty + 
+                 wall_penalty + 
+                 distribution_penalty)
+    
+    return total_loss
 
 def generate_structured_noise(shape):
-    """Generate structured noise as initial state with more variety"""
+    """Generate more structured initial noise"""
     noise = torch.zeros(shape)
     
-    # Add walls with some randomness
-    border_noise = torch.rand(shape[1:]) < 0.8  # 80% chance of wall on border
-    noise[1, 0, :] = border_noise[0, :]  # Top wall
-    noise[1, -1, :] = border_noise[-1, :]  # Bottom wall
-    noise[1, :, 0] = border_noise[:, 0]  # Left wall
-    noise[1, :, -1] = border_noise[:, -1]  # Right wall
+    # Base noise with lower variance
+    noise = torch.rand(shape) * 0.05
     
-    # Add random interior walls (20% chance)
-    interior_walls = torch.rand((shape[1]-2, shape[2]-2)) < 0.2
-    noise[1, 1:-1, 1:-1] = interior_walls
+    # Add walls with high probability at borders
+    noise[1, 0, :] = torch.rand(shape[2]) * 0.3 + 0.7  # Top wall
+    noise[1, -1, :] = torch.rand(shape[2]) * 0.3 + 0.7  # Bottom wall
+    noise[1, :, 0] = torch.rand(shape[1]) * 0.3 + 0.7  # Left wall
+    noise[1, :, -1] = torch.rand(shape[1]) * 0.3 + 0.7  # Right wall
     
-    # Add random noise to all channels
-    for channel in range(shape[0]):
-        if channel != 1:  # Skip wall channel
-            noise[channel, 1:-1, 1:-1] = torch.rand((shape[1]-2, shape[2]-2)) * 0.3
+    # Add some structured internal patterns
+    for _ in range(np.random.randint(2, 5)):
+        x = np.random.randint(1, shape[1]-2)
+        y = np.random.randint(1, shape[2]-2)
+        size = np.random.randint(1, 3)
+        noise[1, x:x+size, y:y+size] = torch.rand(size, size) * 0.5 + 0.5
+    
+    # Add hints for player and box positions
+    center_x, center_y = shape[1] // 2, shape[2] // 2
+    noise[2, center_x, center_y] = 0.3  # Player hint
+    noise[3, center_x+1, center_y] = 0.2  # Box hint
     
     return noise
 
-def train_nca(model, levels, num_epochs=200, batch_size=32):
-    """Train the NCA model with constraints"""
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+def train_nca(model, levels, num_epochs=300, batch_size=64):
+    """Enhanced training with learning rate scheduling and gradient clipping"""
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=15)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     
+    # Convert levels to tensor dataset for better batch processing
+    level_tensors = torch.stack(levels)
+    dataset = torch.utils.data.TensorDataset(level_tensors)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    
+    best_loss = float('inf')
     for epoch in range(num_epochs):
+        model.train()
         total_loss = 0
         valid_levels = 0
-        batch_indices = np.random.choice(len(levels), batch_size)
+        batch_count = 0
         
-        for idx in batch_indices:
-            target = levels[idx].to(device)
-            # Start with structured noise
-            x = generate_structured_noise(target.shape).to(device)
+        for batch in dataloader:
+            target = batch[0].to(device)
+            batch_size = target.shape[0]
             
-            # Forward pass
-            output = model(x)
+            # Generate different noise for each sample
+            x = torch.stack([generate_structured_noise(target.shape[1:]) 
+                           for _ in range(batch_size)]).to(device)
+            
+            # Forward pass with random steps for robustness
+            steps = np.random.randint(20, 30)
+            output = model(x, steps=steps)
             loss = level_constraints_loss(output, target)
             
-            # Backward pass
+            # Backward pass with gradient clipping
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             
             total_loss += loss.item()
+            batch_count += 1
             
-            # Check if generated level is valid
-            if validate_level(output):
-                valid_levels += 1
+            # Track valid levels
+            for i in range(batch_size):
+                if validate_level(output[i]):
+                    valid_levels += 1
+        
+        avg_loss = total_loss / batch_count
+        scheduler.step(avg_loss)
+        
+        # Save best model
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            torch.save(model.state_dict(), 'best_sokoban_nca.pth')
         
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/batch_size:.4f}, Valid Levels: {valid_levels}/{batch_size}')
-
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}, '
+                  f'Valid Levels: {valid_levels}/{len(level_tensors)}, '
+                  f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
+            
 def generate_level(model, size=(10, 10), max_attempts=20):
     """Generate a new Sokoban level with solvability check"""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
