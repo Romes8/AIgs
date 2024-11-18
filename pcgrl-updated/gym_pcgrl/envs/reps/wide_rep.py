@@ -40,9 +40,13 @@ class WideRepresentation(Representation):
         Box: the observation space used by that representation. A 2D array of tile numbers
     """
     def get_observation_space(self, width, height, num_tiles):
-        return spaces.Dict({
-            "map": spaces.Box(low=0, high=num_tiles-1, dtype=np.uint8, shape=(height, width))
-        })
+        # Add a channel dimension (e.g., shape=(height, width, 1))
+        return spaces.Box(
+            low=0,
+            high=num_tiles - 1,
+            shape=(height, width, 1),
+            dtype=np.uint8
+        )
 
     """
     Get the current representation observation object at the current moment
@@ -51,9 +55,8 @@ class WideRepresentation(Representation):
         observation: the current observation at the current moment. A 2D array of tile numbers
     """
     def get_observation(self):
-        return {
-            "map": self._map.copy()
-        }
+        # Add a channel dimension to the map
+        return self._map[..., np.newaxis].copy()
 
     """
     Update the wide representation with the input action
@@ -62,9 +65,13 @@ class WideRepresentation(Representation):
         action: an action that is used to advance the environment (same as action space)
 
     Returns:
-        boolean: True if the action change the map, False if nothing changed
+        tuple: (change (bool), x (int), y (int))
+               change is True if the action changes the map, otherwise False.
     """
     def update(self, action):
-        change = [0,1][self._map[action[1]][action[0]] != action[2]]
-        self._map[action[1]][action[0]] = action[2]
-        return change, action[0], action[1]
+        x, y, tile_value = action
+        # Check if the action modifies the map
+        change = self._map[y][x] != tile_value
+        if change:
+            self._map[y][x] = tile_value
+        return int(change), x, y

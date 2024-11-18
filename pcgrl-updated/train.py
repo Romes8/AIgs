@@ -9,7 +9,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import LoadMonitorResultsError
 from model import FullyConvPolicySmallMap  # Import custom policies
 from utils import get_exp_name, max_exp_idx, load_model  # Utility functions
-
+from PIL import Image
 import gymnasium as gym
 import gym_pcgrl 
 
@@ -22,63 +22,80 @@ class CustomCallback(BaseCallback):
         self.best_mean_reward = -np.inf
         self.log_dir = log_dir
 
+class CustomCallback(BaseCallback):
+    def __init__(self, log_dir, verbose=0):
+        super(CustomCallback, self).__init__(verbose)
+        self.best_mean_reward = -np.inf
+        self.log_dir = log_dir
+
     def _on_step(self) -> bool:
         if self.n_calls % 1000 == 0:
+            print(f"[CustomCallback] Step {self.n_calls}: Checking performance for potential model save.")
             try:
-                print("1")
-                # Find all monitor files in log_dir
-                monitor_files = [f for f in os.listdir(self.log_dir) if f.startswith('monitor')]
+                # Adjusted to find files with ".monitor.csv" extension
+                monitor_files = [f for f in os.listdir(self.log_dir) if f.endswith('.monitor.csv')]
+                print(f"[CustomCallback] Found monitor files: {monitor_files}")
+
                 x, y = [], []
                 for mf in monitor_files:
                     file_path = os.path.join(self.log_dir, mf)
                     if os.path.isfile(file_path):
+                        print(f"[CustomCallback] Processing file: {file_path}")
                         try:
                             data = pd.read_csv(file_path, skiprows=1)
                             x += data['t'].tolist()
                             y += data['r'].tolist()
+                            print(f"[CustomCallback] Loaded {len(data)} rows from {file_path}.")
                         except Exception as e:
-                            print(f"Error reading {mf}: {e}")
-                print("2")
+                            print(f"[CustomCallback] Error reading {mf}: {e}")
+
                 if len(x) > 0:
-                    print("3")
                     mean_reward = np.mean(y[-100:])
-                    print(f"{x[-1]} timesteps")
-                    print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")
+                    print(f"[CustomCallback] Last 100 rewards: {y[-100:]}")
+                    print(f"[CustomCallback] {x[-1]} timesteps")
+                    print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
+                    print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
 
                     # Save model if it's the best so far
                     if mean_reward > self.best_mean_reward:
                         self.best_mean_reward = mean_reward
-                        print("Saving new best model")
+                        print("[CustomCallback] Saving new best model...")
                         self.model.save(os.path.join(self.log_dir, 'best_model'))
                     else:
-                        print("Saving latest model")
+                        print("[CustomCallback] Saving latest model...")
                         self.model.save(os.path.join(self.log_dir, 'latest_model'))
+                else:
+                    print("[CustomCallback] No reward data found yet. Skipping model save.")
             except Exception as e:
-                print(f"Monitor results not found yet or error occurred: {e}. Skipping model save.")
+                print(f"[CustomCallback] Monitor results not found or error occurred: {e}. Skipping model save.")
         return True
+
 
 # Custom callback for rendering
 class RenderCallback(BaseCallback):
     def __init__(self, render_freq=10000, verbose=0):
         super(RenderCallback, self).__init__(verbose)
         self.render_freq = render_freq
+        os.makedirs("generated_levels", exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.n_calls % self.render_freq == 0:
-            try:
-                # Access the first environment's original env
-                env = self.training_env.envs[0].env
-                env.render()  # Ensure your environment supports 'human' mode
-            except Exception as e:
-                # print(f"Rendering failed: {e}")
-                raise e
+            # Access the first environment's original env
+            env = self.training_env.envs[0].env
+            img = env.render()  # Get the RGB array of the current level
+            
+            # Save the level as an image
+            img =  Image.fromarray(img)
+            img.save(os.path.join("generated_levels", f"level_{self.n_calls}.png"))
+                
+
         return True
 
 def main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs):
     global log_dir
 
     # Sokoban-specific parameters (game is always "sokoban" now)
-    env_name = "sokoban-narrow-v0"  # Correct environment name
+    env_name = f"{game}-{representation}-v0"  # Correct environment name
     exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)  # Pass 'experiment' via kwargs
     resume = kwargs.get('resume', False)
 
@@ -123,7 +140,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     if logging:
         callbacks.append(CustomCallback(log_dir=log_dir))
     if render:
-        callbacks.append(RenderCallback(render_freq=1000))  # Adjust frequency as needed
+        callbacks.append(RenderCallback(render_freq=1))  # Adjust frequency as needed
 
     if callbacks:
         callback = CallbackList(callbacks)
@@ -139,10 +156,10 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 ################################## MAIN ########################################
 if __name__ == '__main__':
     game = 'sokoban'  # Hardcoded to "sokoban"
-    representation = 'narrow'  # Representation is still an argument
+    representation = 'wide'  # Representation is still an argument
     experiment = None
     steps = int(1e8)
-    render = True
+    render = False
     logging = True
     n_cpu = 4  # Will be overridden to 1 if render=True
     kwargs = {'resume': False}
