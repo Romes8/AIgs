@@ -18,6 +18,7 @@ OBJECT_TYPES = {
     'wall': 1,
     'target': 2,
     'agent': 3,
+    'box': 4
 }
 # Load the assets (images)
 assets = {
