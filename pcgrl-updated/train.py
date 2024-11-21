@@ -51,7 +51,7 @@ class CustomCallback(BaseCallback):
 
                 if len(x) > 0:
                     mean_reward = np.mean(y[-100:])
-                    print(f"[CustomCallback] Last 100 rewards: {y[-100:]}")
+                    # print(f"[CustomCallback] Last 100 rewards: {y[-100:]}")
                     print(f"[CustomCallback] {x[-1]} timesteps")
                     print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
                     print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
@@ -85,8 +85,8 @@ class RenderCallback(BaseCallback):
             img = env.render()  # Get the RGB array of the current level
             
             # Save the level as an image
-            img =  Image.fromarray(img)
-            img.save(os.path.join("generated_levels", f"level_{self.n_calls}.png"))
+            # img =  Image.fromarray(img)
+            # img.save(os.path.join("generated_levels", f"level_{self.n_calls}.png"))
                 
 
         return True
@@ -140,7 +140,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     if logging:
         callbacks.append(CustomCallback(log_dir=log_dir))
     if render:
-        callbacks.append(RenderCallback(render_freq=1))  # Adjust frequency as needed
+        callbacks.append(RenderCallback(render_freq=10))  # Adjust frequency as needed
 
     if callbacks:
         callback = CallbackList(callbacks)
@@ -156,10 +156,10 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 ################################## MAIN ########################################
 if __name__ == '__main__':
     game = 'sokoban'  # Hardcoded to "sokoban"
-    representation = 'wide'  # Representation is still an argument
+    representation = 'narrow'  # Representation is still an argument
     experiment = None
     steps = int(1e8)
-    render = False
+    render = True
     logging = True
     n_cpu = 4  # Will be overridden to 1 if render=True
     kwargs = {'resume': False}
