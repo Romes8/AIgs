@@ -19,7 +19,7 @@ class PcgrlEnv(gym.Env):
         if prob not in PROBLEMS:
             raise ValueError(f"Invalid problem name: {prob}. Must be one of {list(PROBLEMS.keys())}.")
         if rep not in REPRESENTATIONS:
-            raise ValueError(f"Invalid representation name: {rep}. Must be one of {list(REPRESENTATIONS.keys())}.")
+            raise ValueError(f"Invalid representation name: {rep}. MusR be one of {list(REPRESENTATIONS.keys())}.")
 
         self._prob = PROBLEMS[prob]()
         self._rep = REPRESENTATIONS[rep]()
@@ -53,7 +53,7 @@ class PcgrlEnv(gym.Env):
             self.observation_space = spaces.Box(
                 low=0.0,
                 high=max(self.get_num_tiles(), self._max_changes),
-                shape=(self._prob._height, self._prob._width, 2),  # Only 2 channels: map and heatmap
+                shape=combined_shape,
                 dtype=np.float32
             )
         else:
@@ -75,7 +75,7 @@ class PcgrlEnv(gym.Env):
         self._rep.reset(
             width=self._prob._width,
             height=self._prob._height,
-            prob=list(self._prob._prob.values())  # Ensure probabilities are correct
+            prob=list(self._prob._prob.values())
         )
         self._rep_stats = self._prob.get_stats(
             get_string_map(self._rep._map, self._prob.get_tile_types())
@@ -86,15 +86,17 @@ class PcgrlEnv(gym.Env):
         # Get the observation map from the representation
         map_observation = self._rep.get_observation()
 
-        # Ensure map_observation has 2D shape
+        # Ensure map_observation has 3 dimensions
         if map_observation.ndim == 2:
-            map_observation = map_observation[..., np.newaxis]  # Add channel dimension
+            map_observation = map_observation[..., np.newaxis]
 
         # Stack heatmap as an additional channel
         combined_observation = np.concatenate(
-            (map_observation, self._heatmap[..., np.newaxis]),  # Only 2 channels
+            (map_observation, self._heatmap[..., np.newaxis].astype(np.float32)),
             axis=2
         )
+
+        combined_observation = combined_observation.astype(np.float32)
 
         return combined_observation, {}
 
@@ -119,14 +121,16 @@ class PcgrlEnv(gym.Env):
         # Save copy of old stats to calculate reward
         old_stats = self._rep_stats
 
-        # Update the current state to the new state based on the action
+        # Update the current state based on the action
         change, x, y = self._rep.update(action)
         if change > 0:
             self._changes += change
             self._heatmap[y][x] = min(self._heatmap[y][x] + 1, self._max_changes)
 
         # Get new stats
-        new_stats = self._prob.get_stats(get_string_map(self._rep._map, self._prob.get_tile_types()))
+        new_stats = self._prob.get_stats(
+            get_string_map(self._rep._map, self._prob.get_tile_types())
+        )
         reward = self._prob.get_reward(new_stats, old_stats)
         done = (
             self._prob.get_episode_over(new_stats, old_stats)
@@ -135,22 +139,28 @@ class PcgrlEnv(gym.Env):
         )
         info = self._prob.get_debug_info(new_stats, old_stats)
 
-        # Ensure map_observation has 3 dimensions (add channel if necessary)
+        # Get the observation map from the representation
         map_observation = self._rep.get_observation()
+
+        # Ensure map_observation has 3 dimensions
         if map_observation.ndim == 2:
             map_observation = map_observation[..., np.newaxis]
 
         # Stack heatmap as an additional channel
         combined_observation = np.concatenate(
-            (map_observation, self._heatmap[..., np.newaxis]), axis=2
+            (map_observation, self._heatmap[..., np.newaxis].astype(np.float32)),
+            axis=2
         )
+
+        combined_observation = combined_observation.astype(np.float32)
 
         # Update stats
         self._rep_stats = new_stats
 
         return combined_observation, reward, done, False, info
 
-    def render(self, mode='human'):
+    def render(self, mode='rgb_array'):
+        print('env render')
         tile_size = 16
         img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
         img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")

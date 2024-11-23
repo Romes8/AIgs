@@ -13,26 +13,27 @@ class NarrowRepresentation(Representation):
 
     def reset(self, width, height, prob):
         super().reset(width, height, prob)
-        self._x = self._random.randint(width)
-        self._y = self._random.randint(height)
+        self._x = np.random.randint(width)
+        self._y = np.random.randint(height)
 
     def get_action_space(self, width, height, num_tiles):
         return spaces.Discrete(num_tiles + 1)
 
     def get_observation_space(self, width, height, num_tiles):
-        return spaces.Dict({
-            "pos": spaces.Box(low=np.array([0, 0]), high=np.array([width - 1, height - 1]), dtype=np.uint8),
-            "map": spaces.Box(low=0, high=num_tiles - 1, shape=(height, width), dtype=np.uint8)
-        })
-
-    def get_observation_space(self, width, height, num_tiles):
-        # Combine the position (2D) and map into a single Box
+        # Combine the position and map into a single Box
         return spaces.Box(
             low=0,
-            high=max(num_tiles - 1, width - 1, height - 1),
-            shape=(height, width, 1 + 1),  # Add an extra channel for position
+            high=max(num_tiles - 1, 1),
+            shape=(height, width, 2),  # Map and position channels
             dtype=np.uint8
         )
+
+    def get_observation(self):
+        height, width = self._map.shape
+        pos_layer = np.zeros((height, width), dtype=np.uint8)
+        pos_layer[self._y, self._x] = 1  # Indicate the position
+        observation = np.stack((self._map, pos_layer), axis=2).astype(np.float32)
+        return observation
 
     def adjust_param(self, **kwargs):
         super().adjust_param(**kwargs)

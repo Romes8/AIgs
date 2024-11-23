@@ -91,21 +91,18 @@ class RenderCallback(BaseCallback):
 
         return True
 
+
 def main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs):
     global log_dir
 
-    # Sokoban-specific parameters (game is always "sokoban" now)
     env_name = f"{game}-{representation}-v0"  # Correct environment name
     exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)  # Pass 'experiment' via kwargs
+    print(f"Experiment name: {exp_name}")
     resume = kwargs.get('resume', False)
 
-    # Policy selection (use the custom policy class directly)
-    policy = FullyConvPolicySmallMap  # Use the custom policy class directly
-
-    # Set cropped size for Sokoban or any other game
+    policy = FullyConvPolicySmallMap
     kwargs['cropped_size'] = 10
 
-    # Manage experiment logging and model loading
     n = max_exp_idx(exp_name)
     if not resume:
         n += 1
@@ -115,19 +112,19 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 
     used_dir = log_dir if logging else None
 
-    # If rendering is enabled, set n_cpu=1
     if render:
         n_cpu = 1
 
-    # Create the environment with Monitor wrapper
+    # Pass 'rep' instead of 'representation' in env_kwargs
     env = make_vec_env(
         env_name,
         n_envs=n_cpu,
-        monitor_dir=log_dir,  # Direct Monitor logs to log_dir
+        monitor_dir=log_dir,
+        env_kwargs={'rep': representation}
     )
 
-    # Verify observation_space
     print(f"Observation space: {env.observation_space}")
+
 
     # Load or initialize the model
     if resume and os.path.exists(os.path.join(log_dir, 'latest_model.zip')):
@@ -156,10 +153,10 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 ################################## MAIN ########################################
 if __name__ == '__main__':
     game = 'sokoban'  # Hardcoded to "sokoban"
-    representation = 'narrow'  # Representation is still an argument
+    representation = 'wide'  # Representation is still an argument
     experiment = None
     steps = int(1e8)
-    render = True
+    render = False
     logging = True
     n_cpu = 4  # Will be overridden to 1 if render=True
     kwargs = {'resume': False}

@@ -1,3 +1,0 @@
-gymnasium
-numpy>=1.17
-pillow
