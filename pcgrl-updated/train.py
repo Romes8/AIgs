@@ -162,13 +162,12 @@ if __name__ == '__main__':
     steps = int(1e8)
     render = True
     logging = True
-    n_cpu = 20 
+    n_cpu = 16 
     kwargs = {
         'resume': True,
         'n_levels': 10,
         'render_freq': 10,
         'mode': 'text_mode'
     }
-
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
 
