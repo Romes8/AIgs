@@ -152,7 +152,7 @@ if __name__ == '__main__':
     steps = int(1e8)
     render = False
     logging = True
-    n_cpu = 20 
+    n_cpu = 16 
     kwargs = {'resume': False}
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
