@@ -64,24 +64,33 @@ class CustomCallback(BaseCallback):
                 print(f"[CustomCallback] Monitor results not found or error occurred: {e}. Skipping model save.")
         return True
 
-
 # Custom callback for rendering
 class RenderCallback(BaseCallback):
-    def __init__(self, render_freq=10000, verbose=0):
+    def __init__(self, render_freq=10000, verbose=0, mode='rgb_array'):
         super(RenderCallback, self).__init__(verbose)
         self.render_freq = render_freq
+        self.mode = mode
         os.makedirs("generated_levels", exist_ok=True)
+        os.makedirs("generated_levels/img", exist_ok=True)
+        os.makedirs("generated_levels/txt", exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.n_calls % self.render_freq == 0:
             # Access the first environment's original env
             env = self.training_env.envs[0].env
-            img = env.render()  # Get the RGB array of the current level
+
+            if self.mode == 'rgb_array':
+                img = env.render(mode='rgb_array')  # Get the RGB array of the current level
+
+                # Save the level as an image
+                img =  Image.fromarray(img)
+                img.save(os.path.join("generated_levels/img", f"level_{int(self.n_calls / self.render_freq)}.png"))
             
-            # Save the level as an image
-            # img =  Image.fromarray(img)
-            # img.save(os.path.join("generated_levels", f"level_{self.n_calls}.png"))
-                
+            elif self.mode == 'text_mode':
+                level = env.render()
+
+                with open(os.path.join("generated_levels/txt", f"level_{int(self.n_calls / self.render_freq)}.txt"), 'w') as f:
+                    f.write(level)
 
         return True
 
@@ -92,7 +101,12 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     env_name = f"{game}-{representation}-v0"  # Correct environment name
     exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)  # Pass 'experiment' via kwargs
     print(f"Experiment name: {exp_name}")
-    resume = kwargs.get('resume', False)
+
+    resume = kwargs.get('resume', True)
+    train = kwargs.get('train', True)
+    n_levels = kwargs.get('n_levels', 10)
+    render_freq = kwargs.get('render_freq', 10)
+    mode = kwargs.get('mode', 'rgb_array')
 
     policy = FullyConvPolicySmallMap
     kwargs['cropped_size'] = 10
@@ -119,19 +133,21 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 
     print(f"Observation space: {env.observation_space}")
 
-
     # Load or initialize the model
-    if resume and os.path.exists(os.path.join(log_dir, 'latest_model.zip')):
+    if resume or not train and os.path.exists(os.path.join(log_dir, 'latest_model.zip')):
+        print(f"Loading model from {log_dir}")
         model = PPO.load(os.path.join(log_dir, 'latest_model'), env=env)
+        print("Successfully loaded model")
     else:
         model = PPO(policy, env, verbose=1, tensorboard_log=log_dir)  # Align tensorboard_log with log_dir
 
     # Prepare callbacks
     callbacks = []
-    if logging:
+    if logging and train:
         callbacks.append(CustomCallback(log_dir=log_dir))
+    
     if render:
-        callbacks.append(RenderCallback(render_freq=10))  # Adjust frequency as needed
+        callbacks.append(RenderCallback(render_freq=render_freq, mode=mode))  # Adjust frequency as needed
 
     if callbacks:
         callback = CallbackList(callbacks)
@@ -140,7 +156,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 
     # Train the model
     model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callback)
-
+     
     # Save the final model
     model.save(os.path.join(log_dir, 'final_model'))
 
@@ -150,9 +166,16 @@ if __name__ == '__main__':
     representation = 'wide'  # Representation is still an argument
     experiment = None
     steps = int(1e8)
-    render = False
+    render = True
     logging = True
     n_cpu = 20 
-    kwargs = {'resume': False}
+    kwargs = {
+        'resume': False,
+        'train': True,
+        'n_levels': 10,
+        'render_freq': 10,
+        'mode': 'text_mode'
+    }
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
+
