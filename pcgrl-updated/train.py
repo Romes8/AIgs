@@ -15,12 +15,6 @@ import gym_pcgrl
 
 import pandas as pd
 
-# Custom callback for saving models and tracking rewards
-class CustomCallback(BaseCallback):
-    def __init__(self, log_dir, verbose=0):
-        super(CustomCallback, self).__init__(verbose)
-        self.best_mean_reward = -np.inf
-        self.log_dir = log_dir
 
 class CustomCallback(BaseCallback):
     def __init__(self, log_dir, verbose=0):
@@ -40,19 +34,19 @@ class CustomCallback(BaseCallback):
                 for mf in monitor_files:
                     file_path = os.path.join(self.log_dir, mf)
                     if os.path.isfile(file_path):
-                        print(f"[CustomCallback] Processing file: {file_path}")
+                        # print(f"[CustomCallback] Processing file: {file_path}")
                         try:
                             data = pd.read_csv(file_path, skiprows=1)
                             x += data['t'].tolist()
                             y += data['r'].tolist()
-                            print(f"[CustomCallback] Loaded {len(data)} rows from {file_path}.")
+                            # print(f"[CustomCallback] Loaded {len(data)} rows from {file_path}.")
                         except Exception as e:
                             print(f"[CustomCallback] Error reading {mf}: {e}")
 
                 if len(x) > 0:
                     mean_reward = np.mean(y[-100:])
                     # print(f"[CustomCallback] Last 100 rewards: {y[-100:]}")
-                    print(f"[CustomCallback] {x[-1]} timesteps")
+                    # print(f"[CustomCallback] {x[-1]} timesteps")
                     print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
                     print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
 
@@ -106,7 +100,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     n = max_exp_idx(exp_name)
     if not resume:
         n += 1
-    log_dir = f"runs/{exp_name}_{n}_log"
+    log_dir = f"runs/{exp_name}_{n}_log_{representation}"
     if not resume:
         os.makedirs(log_dir, exist_ok=True)
 
@@ -158,7 +152,7 @@ if __name__ == '__main__':
     steps = int(1e8)
     render = False
     logging = True
-    n_cpu = 4  # Will be overridden to 1 if render=True
+    n_cpu = 20 
     kwargs = {'resume': False}
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)

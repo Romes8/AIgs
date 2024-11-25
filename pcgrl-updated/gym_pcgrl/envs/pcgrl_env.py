@@ -160,7 +160,6 @@ class PcgrlEnv(gym.Env):
         return combined_observation, reward, done, False, info
 
     def render(self, mode='rgb_array'):
-        print('env render')
         tile_size = 16
         img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
         img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
