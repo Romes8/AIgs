@@ -29,7 +29,8 @@ class PcgrlEnv(gym.Env):
         self._max_changes = max(int(0.2 * self._prob._width * self._prob._height), 1)
         self._max_iterations = self._max_changes * self._prob._width * self._prob._height
         self._heatmap = np.zeros((self._prob._height, self._prob._width), dtype=np.uint8)
-
+        
+        self.render_mode = kwargs.get('render_mode', 'rgb_array')
         self.seed(kwargs.get('seed', None))
         self.viewer = None
 
@@ -178,14 +179,14 @@ class PcgrlEnv(gym.Env):
 
         return combined_observation, reward, done, False, info
 
-    def render(self, mode='text_map'):
+    def render(self):
         tile_size = 16
         img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
         img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
         
-        if mode == 'rgb_array':
+        if self.render_mode == 'rgb_array':
             return np.array(img)
-        elif mode == 'human':
+        elif self.render_mode == 'human':
             if not hasattr(self, '_plt_fig'):
                 # Initialize matplotlib figure and axes
                 self._plt_fig, self._plt_ax = plt.subplots()
@@ -197,10 +198,10 @@ class PcgrlEnv(gym.Env):
                 self._plt_img.set_data(np.array(img))
                 self._plt_fig.canvas.draw()
                 self._plt_fig.canvas.flush_events()
-        elif mode == 'text_map':
+        elif self.render_mode == 'text_map':
             return (self.get_text_representation())
         else:
-            raise NotImplementedError(f"Render mode '{mode}' is not implemented.")
+            raise NotImplementedError(f"Render mode '{self.render_mode}' is not implemented.")
 
     def close(self):
         if self.viewer:
