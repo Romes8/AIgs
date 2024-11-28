@@ -5,14 +5,13 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 from stable_baselines3.common.env_util import make_vec_env
-from model import FullyConvPolicy  # Updated import
+from model import FullyConvPolicyBigMap, FullyConvPolicySmallMap  # Updated imports
 from utils import get_exp_name, max_exp_idx, load_model  # Ensure these utilities are correctly implemented
 from PIL import Image
 import gymnasium as gym
 import gym_pcgrl 
 
 import pandas as pd
-import numpy as np  # Ensure numpy is imported
 
 class StepCounterCallback(BaseCallback):
     """
@@ -92,60 +91,88 @@ class CustomCallback(BaseCallback):
 
 # Custom callback for rendering
 class RenderCallback(BaseCallback):
-    def __init__(self, render_freq=1, verbose=0):
+    def __init__(self, render_freq=1, representation='turtle', verbose=0):
         super(RenderCallback, self).__init__(verbose)
         self.render_freq = render_freq
-        os.makedirs("generated_levels", exist_ok=True)
-        os.makedirs("generated_levels/img", exist_ok=True)
-        os.makedirs("generated_levels/txt", exist_ok=True)
+        self.representation = representation
+        os.makedirs(f"generated_levels_{self.representation}/img", exist_ok=True)
+        os.makedirs(f"generated_levels_{self.representation}/txt", exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.n_calls % self.render_freq == 0:
-            # Access the first environment's original env
-            env = self.training_env.envs[0].env
+            try:
+                # Access the first environment's original env
+                env = self.training_env.envs[0].env
 
-            level = env.render()  # Get the RGB array or string of the current level
-            if isinstance(level, np.ndarray):
-                # Save the level as an image
-                try:
-                    img = Image.fromarray(level)
-                    img_path = os.path.join(f"generated_levels_{representation}/img", f"level_{int(self.n_calls / self.render_freq)}.png")
-                    img.save(img_path)
-                    print(f"[RenderCallback] Saved image: {img_path}")
-                except Exception as e:
-                    print(f"[RenderCallback] Error saving image: {e}")
-            elif isinstance(level, str):
-                # Save the text map
-                try:
-                    txt_path = os.path.join("generated_levels/txt", f"level_{int(self.n_calls / self.render_freq)}.txt")
-                    with open(txt_path, 'w') as f:
-                        f.write(level)
-                    print(f"[RenderCallback] Saved text map: {txt_path}")
-                except Exception as e:
-                    print(f"[RenderCallback] Error saving text map: {e}")
-        else:
-            print(f"[RenderCallback] Unhandled level type: {type(level)}")
-
+                level = env.render()  # Get the RGB array or string of the current level
+                if isinstance(level, np.ndarray):
+                    # Save the level as an image
+                    try:
+                        img = Image.fromarray(level)
+                        img_path = os.path.join(f"generated_levels_{self.representation}/img", f"level_{int(self.n_calls / self.render_freq)}.png")
+                        img.save(img_path)
+                        print(f"[RenderCallback] Saved image: {img_path}")
+                    except Exception as e:
+                        print(f"[RenderCallback] Error saving image: {e}")
+                elif isinstance(level, str):
+                    # Save the text map
+                    try:
+                        txt_path = os.path.join(f"generated_levels_{self.representation}/txt", f"level_{int(self.n_calls / self.render_freq)}.txt")
+                        with open(txt_path, 'w') as f:
+                            f.write(level)
+                        print(f"[RenderCallback] Saved text map: {txt_path}")
+                    except Exception as e:
+                        print(f"[RenderCallback] Error saving text map: {e}")
+                else:
+                    print(f"[RenderCallback] Unhandled level type: {type(level)}")
+            except Exception as e:
+                print(f"[RenderCallback] Error accessing environment for rendering: {e}")
         return True
 
 def main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs):
     global log_dir
 
-    env_name = f"{game}-{representation}-v0"  # Correct environment name
-    exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)  # Pass 'experiment' via kwargs
+    env_name = '{}-{}-v0'.format(game, representation)
+    exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)
     print(f"Experiment name: {exp_name}")
 
-    resume = kwargs.get('resume', True)
+    resume = kwargs.get('resume', False)
     render_freq = kwargs.get('render_freq', 10)
 
-    # Determine features_dim based on representation
     if representation == 'wide':
         features_dim = 256
     else:
         features_dim = 512
 
-    policy = FullyConvPolicy  # Use the unified policy class
-    kwargs['cropped_size'] = 10
+    single_env = gym.make(env_name, rep=representation)
+    ob_space = single_env.observation_space
+    ac_space = single_env.action_space
+
+    if isinstance(ac_space, gym.spaces.Discrete):
+        n_tools = int(ac_space.n / (ob_space.shape[0] * ob_space.shape[1]))
+    elif isinstance(ac_space, gym.spaces.MultiDiscrete):
+        n_tools = len(ac_space.nvec)  # For MultiDiscrete, use the length of nvec
+    elif isinstance(ac_space, gym.spaces.Box):
+        n_tools = int(np.prod(ac_space.shape) / (ob_space.shape[0] * ob_space.shape[1]))
+    else:
+        raise ValueError(f"Unsupported action space type: {type(ac_space)}")
+
+    n_tools = max(1, n_tools)
+    print(f"Calculated n_tools: {n_tools}")
+    print(f"Observation space: {ob_space}")
+    print(f"Action space: {ac_space}")
+
+    if representation == 'wide':
+        policy = FullyConvPolicyBigMap
+    else:
+        policy = FullyConvPolicySmallMap
+
+    policy_kwargs = dict(
+        features_extractor_kwargs=dict(
+            n_tools=n_tools,
+            features_dim=features_dim
+        )
+    )
 
     n = max_exp_idx(exp_name)
     if not resume:
@@ -159,7 +186,6 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     if render:
         n_cpu = 1
 
-    # Pass 'rep' instead of 'representation' in env_kwargs
     env = make_vec_env(
         env_name,
         n_envs=n_cpu,
@@ -167,12 +193,10 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
         env_kwargs={'rep': representation}
     )
 
-    print(f"Observation space: {env.observation_space}")
-
-    # Load or initialize the model
-    if resume and os.path.exists(os.path.join(log_dir, 'best_model.zip')):
-        print(f"Loading model from {log_dir}")
-        model = PPO.load(os.path.join(log_dir, 'best_model'), env=env)
+    model_path = os.path.join(log_dir, 'best_model.zip')
+    if resume and os.path.exists(model_path):
+        print(f"Loading model from {model_path}")
+        model = PPO.load(model_path, env=env)
         print("Successfully loaded model")
     else:
         model = PPO(
@@ -180,32 +204,27 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
             env,
             verbose=1,
             tensorboard_log=log_dir,
-            policy_kwargs=dict(features_extractor_kwargs=dict(features_dim=features_dim))
-        )  # Align tensorboard_log with log_dir
+            policy_kwargs=policy_kwargs
+        )
 
-    # Log parameter count
     print(f"Logging parameter count for policy: {policy.__name__}")
     param_count = sum(p.numel() for p in model.policy.parameters() if p.requires_grad)
     print(f"Total trainable parameters: {param_count}")
 
-    # Prepare callbacks
     callbacks = []
     if logging:
-        # callbacks.append(StepCounterCallback(verbose=1)) 
         callbacks.append(CustomCallback(log_dir=log_dir))
-    
-    # if render:
-        # callbacks.append(RenderCallback(render_freq=render_freq))  # Adjust frequency as needed
+        callbacks.append(StepCounterCallback())
+    if render:
+        callbacks.append(RenderCallback(render_freq=render_freq, representation=representation))
 
-    if callbacks:
-        callback = CallbackList(callbacks)
-    else:
-        callback = None
+    callback = CallbackList(callbacks) if callbacks else None
 
-    # Train the model
-    model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callback, progress_bar=True)
-     
-    # Save the final model
+    try:
+        model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callback, progress_bar=True)
+    except Exception as e:
+        print(f"An error occurred during training: {e}")
+
     model.save(os.path.join(log_dir, 'final_model'))
 
 ################################## MAIN ########################################
@@ -216,11 +235,8 @@ if __name__ == '__main__':
     steps = int(1e8)
     render = False
     logging = True
-    n_cpu = 4
+    n_cpu = 10
     kwargs = {
         'resume': False,
-        'n_levels': 16,
-        'render_freq': 1,
-        'mode': 'humans' # this doesnt work
     }
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)

@@ -32,7 +32,7 @@ class PcgrlEnv(gym.Env):
         self._heatmap = np.zeros((self._prob._height, self._prob._width), dtype=np.uint8)
         
         # self.render_mode = kwargs.get('render_mode', 'human')
-        self.render_mode = 'human'
+        self.render_mode = 'text_map'
         self.seed(kwargs.get('seed', None))
         self.viewer = None
 

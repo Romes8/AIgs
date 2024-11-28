@@ -9,7 +9,7 @@ from utils import get_exp_name, max_exp_idx, load_model  # Utility functions
 
 # Define game and representation
 game = 'sokoban'
-representation = 'turtle'  # Options: 'narrow', 'turtle', 'wide'
+representation = 'narrow'  # Options: 'narrow', 'turtle', 'wide'
 render_mode = 'rgb_array'  # Options: 'rgb_array', 'text_map'
 
 # Create environment name
@@ -21,7 +21,7 @@ env = gym.make(env_name, rep=representation, render_mode=render_mode)
 # Load the trained model
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-model_dir = f"runs/{game}_{20}_log_{representation}"
+model_dir = f"runs/{game}_{0}_log_{representation}"
 
 if os.path.exists(os.path.join(model_dir, 'best_model.zip')):
     print(f"Loading model from {model_dir}")
