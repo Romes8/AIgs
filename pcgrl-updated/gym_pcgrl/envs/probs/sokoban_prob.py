@@ -91,6 +91,7 @@ class SokobanProblem(Problem):
 
     def get_stats(self, map):
         map_locations = get_tile_locations(map, self.get_tile_types())
+        # print('map_locations', map_locations)
         map_stats = {
             "player": calc_certain_tile(map_locations, ["player"]),
             "crate": calc_certain_tile(map_locations, ["crate"]),
@@ -106,7 +107,7 @@ class SokobanProblem(Problem):
             map_stats["dist-win"], map_stats["solution"] = self._run_game(map)
         return map_stats
 
-    def get_reward(self, new_stats, old_stats):
+    def get_reward(self, new_stats, old_stats, print_debug=False):
         # Longer path is rewarded and fewer regions are rewarded
         rewards = {
             "player": get_range_reward(new_stats["player"], old_stats["player"], 1, 1),
@@ -119,9 +120,13 @@ class SokobanProblem(Problem):
             "sol-length": get_range_reward(len(new_stats["solution"]), len(old_stats["solution"]), np.inf, np.inf)
         }
         # Calculate the total reward
+        # if print_debug:
+        #     print('rewards', rewards)
         total_reward = sum(
             rewards[key] * self._rewards[key] for key in self._rewards
         )
+        # if print_debug:
+            # print('total rewards:',total_reward)
         return total_reward
 
     def get_episode_over(self, new_stats, old_stats):

@@ -9,6 +9,7 @@ from gym_pcgrl.envs.helper import get_int_prob, get_string_map
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import time 
 
 class PcgrlEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array','text_map']}
@@ -30,7 +31,8 @@ class PcgrlEnv(gym.Env):
         self._max_iterations = self._max_changes * self._prob._width * self._prob._height
         self._heatmap = np.zeros((self._prob._height, self._prob._width), dtype=np.uint8)
         
-        self.render_mode = kwargs.get('render_mode', 'rgb_array')
+        # self.render_mode = kwargs.get('render_mode', 'human')
+        self.render_mode = 'human'
         self.seed(kwargs.get('seed', None))
         self.viewer = None
 
@@ -70,6 +72,11 @@ class PcgrlEnv(gym.Env):
         return [seed]
 
     def reset(self, seed=None, options=None):
+        # print('-')
+        # print('-')
+        # print('-')
+        # print('-')
+        # print('reset')
         super().reset(seed=seed)
         self._changes = 0
         self._iteration = 0
@@ -130,8 +137,10 @@ class PcgrlEnv(gym.Env):
         if 'change_percentage' in kwargs:
             percentage = min(1, max(0, kwargs.get('change_percentage')))
             self._max_changes = max(int(percentage * self._prob._width * self._prob._height), 1)
+            # print('change_percentage', self._max_changes)
         if 'max_iterations' in kwargs:
             self._max_iterations = kwargs.get('max_iterations', self._max_iterations)
+            # print('change_percentage', self._max_iterations)
         self._rep.adjust_param(**kwargs)
         self._prob.adjust_param(**kwargs)
 
@@ -151,7 +160,8 @@ class PcgrlEnv(gym.Env):
         new_stats = self._prob.get_stats(
             get_string_map(self._rep._map, self._prob.get_tile_types())
         )
-        reward = self._prob.get_reward(new_stats, old_stats)
+        # print(f'new_stats: {new_stats}')
+        reward = self._prob.get_reward(new_stats, old_stats, True)
         done = (
             self._prob.get_episode_over(new_stats, old_stats)
             or self._changes >= self._max_changes
@@ -180,7 +190,7 @@ class PcgrlEnv(gym.Env):
         return combined_observation, reward, done, False, info
 
     def render(self):
-        tile_size = 16
+        # print('Rendering', self.render_mode)
         img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
         img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
         

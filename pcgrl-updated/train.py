@@ -4,17 +4,47 @@ import os
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
-from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import LoadMonitorResultsError
-from model import FullyConvPolicySmallMap  # Import custom policies
-from utils import get_exp_name, max_exp_idx, load_model  # Utility functions
+from model import FullyConvPolicy  # Updated import
+from utils import get_exp_name, max_exp_idx, load_model  # Ensure these utilities are correctly implemented
 from PIL import Image
 import gymnasium as gym
 import gym_pcgrl 
 
 import pandas as pd
+import numpy as np  # Ensure numpy is imported
 
+class StepCounterCallback(BaseCallback):
+    """
+    Custom callback for logging the number of steps taken in each episode.
+    """
+    def __init__(self, verbose=0):
+        super(StepCounterCallback, self).__init__(verbose)
+        self.episode_step_counts = []
+        self.current_steps = 0
+
+    def _on_step(self) -> bool:
+        self.current_steps += 1
+        dones = self.locals.get('dones')
+        if dones is not None:
+            for done in dones:
+                if done:
+                    self.episode_step_counts.append(self.current_steps)
+                    if self.verbose > 0:
+                        print(f"Episode finished after {self.current_steps} steps.")
+                    # Log to TensorBoard
+                    self.logger.record('episode/steps', self.current_steps)
+                    # Reset step count for the next episode
+                    self.current_steps = 0
+        return True
+
+    def _on_training_end(self) -> None:
+        if len(self.episode_step_counts) > 0:
+            avg_steps = np.mean(self.episode_step_counts)
+            print(f"\nAverage steps per episode: {avg_steps:.2f}")
+            print(f"Total episodes: {len(self.episode_step_counts)}")
+        else:
+            print("\nNo episodes were completed during training.")
 
 class CustomCallback(BaseCallback):
     def __init__(self, log_dir, verbose=0):
@@ -34,19 +64,15 @@ class CustomCallback(BaseCallback):
                 for mf in monitor_files:
                     file_path = os.path.join(self.log_dir, mf)
                     if os.path.isfile(file_path):
-                        # print(f"[CustomCallback] Processing file: {file_path}")
                         try:
                             data = pd.read_csv(file_path, skiprows=1)
                             x += data['t'].tolist()
                             y += data['r'].tolist()
-                            # print(f"[CustomCallback] Loaded {len(data)} rows from {file_path}.")
                         except Exception as e:
                             print(f"[CustomCallback] Error reading {mf}: {e}")
 
                 if len(x) > 0:
                     mean_reward = np.mean(y[-100:])
-                    # print(f"[CustomCallback] Last 100 rewards: {y[-100:]}")
-                    # print(f"[CustomCallback] {x[-1]} timesteps")
                     print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
                     print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
 
@@ -66,7 +92,7 @@ class CustomCallback(BaseCallback):
 
 # Custom callback for rendering
 class RenderCallback(BaseCallback):
-    def __init__(self, render_freq=10000, verbose=0):
+    def __init__(self, render_freq=1, verbose=0):
         super(RenderCallback, self).__init__(verbose)
         self.render_freq = render_freq
         os.makedirs("generated_levels", exist_ok=True)
@@ -78,19 +104,29 @@ class RenderCallback(BaseCallback):
             # Access the first environment's original env
             env = self.training_env.envs[0].env
 
-            level = env.render()  # Get the RGB array of the current level
-            
-            # Save the level as an image
-            #img =  Image.fromarray(level)
-            #img.save(os.path.join("generated_levels/img", f"level_{int(self.n_calls / self.render_freq)}.png")
-
-            # print text map
-            print(level)
-            # with open(os.path.join("generated_levels/txt", f"level_{int(self.n_calls / self.render_freq)}.txt"), 'w') as f:
-            #     f.write(level)
+            level = env.render()  # Get the RGB array or string of the current level
+            if isinstance(level, np.ndarray):
+                # Save the level as an image
+                try:
+                    img = Image.fromarray(level)
+                    img_path = os.path.join(f"generated_levels_{representation}/img", f"level_{int(self.n_calls / self.render_freq)}.png")
+                    img.save(img_path)
+                    print(f"[RenderCallback] Saved image: {img_path}")
+                except Exception as e:
+                    print(f"[RenderCallback] Error saving image: {e}")
+            elif isinstance(level, str):
+                # Save the text map
+                try:
+                    txt_path = os.path.join("generated_levels/txt", f"level_{int(self.n_calls / self.render_freq)}.txt")
+                    with open(txt_path, 'w') as f:
+                        f.write(level)
+                    print(f"[RenderCallback] Saved text map: {txt_path}")
+                except Exception as e:
+                    print(f"[RenderCallback] Error saving text map: {e}")
+        else:
+            print(f"[RenderCallback] Unhandled level type: {type(level)}")
 
         return True
-
 
 def main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs):
     global log_dir
@@ -102,7 +138,13 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     resume = kwargs.get('resume', True)
     render_freq = kwargs.get('render_freq', 10)
 
-    policy = FullyConvPolicySmallMap
+    # Determine features_dim based on representation
+    if representation == 'wide':
+        features_dim = 256
+    else:
+        features_dim = 512
+
+    policy = FullyConvPolicy  # Use the unified policy class
     kwargs['cropped_size'] = 10
 
     n = max_exp_idx(exp_name)
@@ -133,15 +175,27 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
         model = PPO.load(os.path.join(log_dir, 'best_model'), env=env)
         print("Successfully loaded model")
     else:
-        model = PPO(policy, env, verbose=1, tensorboard_log=log_dir)  # Align tensorboard_log with log_dir
+        model = PPO(
+            policy,
+            env,
+            verbose=1,
+            tensorboard_log=log_dir,
+            policy_kwargs=dict(features_extractor_kwargs=dict(features_dim=features_dim))
+        )  # Align tensorboard_log with log_dir
+
+    # Log parameter count
+    print(f"Logging parameter count for policy: {policy.__name__}")
+    param_count = sum(p.numel() for p in model.policy.parameters() if p.requires_grad)
+    print(f"Total trainable parameters: {param_count}")
 
     # Prepare callbacks
     callbacks = []
     if logging:
+        # callbacks.append(StepCounterCallback(verbose=1)) 
         callbacks.append(CustomCallback(log_dir=log_dir))
     
-    if render:
-        callbacks.append(RenderCallback(render_freq=render_freq))  # Adjust frequency as needed
+    # if render:
+        # callbacks.append(RenderCallback(render_freq=render_freq))  # Adjust frequency as needed
 
     if callbacks:
         callback = CallbackList(callbacks)
@@ -149,25 +203,24 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
         callback = None
 
     # Train the model
-    model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callback)
+    model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callback, progress_bar=True)
      
     # Save the final model
     model.save(os.path.join(log_dir, 'final_model'))
 
 ################################## MAIN ########################################
 if __name__ == '__main__':
-    game = 'sokoban'  # Hardcoded to "sokoban"
-    representation = 'narrow'  # Representation is still an argument
+    game = 'sokoban' 
+    representation = 'turtle' 
     experiment = None
     steps = int(1e8)
-    render = True
+    render = False
     logging = True
-    n_cpu = 16 
+    n_cpu = 4
     kwargs = {
-        'resume': True,
-        'n_levels': 10,
-        'render_freq': 10,
-        'mode': 'text_mode'
+        'resume': False,
+        'n_levels': 16,
+        'render_freq': 1,
+        'mode': 'humans' # this doesnt work
     }
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
-
