@@ -4,12 +4,11 @@ import gymnasium as gym
 import gym_pcgrl  # Ensure that the PCGRL environments are registered
 from PIL import Image
 import numpy as np
-from model import FullyConvPolicy  # Import your custom policy if needed
 from utils import get_exp_name, max_exp_idx, load_model  # Utility functions
 
 # Define game and representation
 game = 'sokoban'
-representation = 'narrow'  # Options: 'narrow', 'turtle', 'wide'
+representation = 'wide'  # Options: 'narrow', 'turtle', 'wide'
 render_mode = 'rgb_array'  # Options: 'rgb_array', 'text_map'
 
 # Create environment name
@@ -21,11 +20,11 @@ env = gym.make(env_name, rep=representation, render_mode=render_mode)
 # Load the trained model
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-model_dir = f"runs/{game}_{0}_log_{representation}"
+model_dir = f"runs/{game}_{2}_log_{representation}"
 
-if os.path.exists(os.path.join(model_dir, 'best_model.zip')):
+if os.path.exists(os.path.join(model_dir, 'latest_model.zip')):
     print(f"Loading model from {model_dir}")
-    model = PPO.load(os.path.join(model_dir, 'best_model'))
+    model = PPO.load(os.path.join(model_dir, 'latest_model'))
     print("Successfully loaded model")
 else:
     raise FileNotFoundError(f"No model found in {model_dir}")
@@ -41,19 +40,22 @@ os.makedirs(f"generated_levels_{representation}/img", exist_ok=True)
 os.makedirs(f"generated_levels_{representation}/txt", exist_ok=True)
 
 # Generate levels
-num_levels = 1000  # Number of levels to generate
+num_levels = 10  # Number of levels to generate
 for i in range(num_levels):
     obs, info = env.reset()
     print(f"\nGenerating Level {i}:")
     done = False
+    step = 0
     while not done:
         action, _states = model.predict(obs, deterministic=True)
+        print(f"Step {step}: Action: {action}")
         obs, reward, done, truncated, info = env.step(action)
+        step += 1
     
     # Save the generated level
     level = env.render()
 
-    print(env.render_mode)
+    # print(env.render_mode)
 
     # If image:
     if env.render_mode == 'rgb_array':
@@ -65,5 +67,5 @@ for i in range(num_levels):
             f.write(level)
 
     # Optionally, print evaluation metrics
-    print(f"Level {i} generated with final reward: {reward}")
+    print(f"Level {i} generated with final reward: {reward}, steps: {step}")
     print(f"Info: {info}")

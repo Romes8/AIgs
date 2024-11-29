@@ -29,10 +29,12 @@ class PcgrlEnv(gym.Env):
         self._changes = 0
         self._max_changes = max(int(0.2 * self._prob._width * self._prob._height), 1)
         self._max_iterations = self._max_changes * self._prob._width * self._prob._height
+        # self._max_iterations = 50
         self._heatmap = np.zeros((self._prob._height, self._prob._width), dtype=np.uint8)
-        
+        # print('max_changes', self._max_changes)
+        # print('max_iterations', self._max_iterations)
         # self.render_mode = kwargs.get('render_mode', 'human')
-        self.render_mode = 'text_map'
+        self.render_mode = 'rgb_array'
         self.seed(kwargs.get('seed', None))
         self.viewer = None
 

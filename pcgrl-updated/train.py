@@ -2,17 +2,51 @@
 
 import os
 import numpy as np
+import gymnasium as gym
+import gym_pcgrl  # Ensure this import is correct and gym-pcgrl is installed
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 from stable_baselines3.common.env_util import make_vec_env
-from model import FullyConvPolicyBigMap, FullyConvPolicySmallMap  # Updated imports
-from utils import get_exp_name, max_exp_idx, load_model  # Ensure these utilities are correctly implemented
+from model import FullyConvPolicy  # Updated import
+from utils import get_exp_name, max_exp_idx  # Ensure these utilities are correctly implemented
 from PIL import Image
-import gymnasium as gym
-import gym_pcgrl 
-
 import pandas as pd
 
+# FlattenActionWrapper to convert MultiDiscrete action space to Discrete
+class FlattenActionWrapper(gym.Wrapper):
+    """
+    A wrapper that flattens a MultiDiscrete action space into a Discrete action space.
+    """
+    def __init__(self, env):
+        super(FlattenActionWrapper, self).__init__(env)
+        self.original_action_space = env.action_space
+        # Calculate the total number of discrete actions
+        self.action_space_sizes = self.original_action_space.nvec
+        self.total_actions = int(np.prod(self.action_space_sizes))
+        self.action_space = gym.spaces.Discrete(self.total_actions)
+
+    def action(self, action):
+        """
+        Convert the flattened action into the original MultiDiscrete action.
+        """
+        return self.unflatten_action(action)
+
+    def unflatten_action(self, index):
+        action = []
+        for size in reversed(self.action_space_sizes):
+            action.append(index % size)
+            index = index // size
+        return np.array(list(reversed(action)), dtype=self.original_action_space.dtype)
+
+    def step(self, action):
+        original_action = self.unflatten_action(action)
+        obs, reward, done, truncated, info = self.env.step(original_action)
+        return obs, reward, done, truncated, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+# Custom callback for logging steps per episode
 class StepCounterCallback(BaseCallback):
     """
     Custom callback for logging the number of steps taken in each episode.
@@ -45,6 +79,7 @@ class StepCounterCallback(BaseCallback):
         else:
             print("\nNo episodes were completed during training.")
 
+# Custom callback for saving best model
 class CustomCallback(BaseCallback):
     def __init__(self, log_dir, verbose=0):
         super(CustomCallback, self).__init__(verbose)
@@ -65,12 +100,12 @@ class CustomCallback(BaseCallback):
                     if os.path.isfile(file_path):
                         try:
                             data = pd.read_csv(file_path, skiprows=1)
-                            x += data['t'].tolist()
-                            y += data['r'].tolist()
+                            x += data['l'].tolist()  # 'l' is length of episode
+                            y += data['r'].tolist()  # 'r' is reward
                         except Exception as e:
                             print(f"[CustomCallback] Error reading {mf}: {e}")
 
-                if len(x) > 0:
+                if len(y) > 0:
                     mean_reward = np.mean(y[-100:])
                     print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
                     print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
@@ -89,7 +124,7 @@ class CustomCallback(BaseCallback):
                 print(f"[CustomCallback] Monitor results not found or error occurred: {e}. Skipping model save.")
         return True
 
-# Custom callback for rendering
+# Custom callback for rendering levels during training (optional)
 class RenderCallback(BaseCallback):
     def __init__(self, render_freq=1, representation='turtle', verbose=0):
         super(RenderCallback, self).__init__(verbose)
@@ -132,7 +167,7 @@ class RenderCallback(BaseCallback):
 def main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs):
     global log_dir
 
-    env_name = '{}-{}-v0'.format(game, representation)
+    env_name = f'{game}-{representation}-v0'
     exp_name = get_exp_name(game=game, representation=representation, experiment=experiment)
     print(f"Experiment name: {exp_name}")
 
@@ -144,36 +179,22 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     else:
         features_dim = 512
 
-    single_env = gym.make(env_name, rep=representation)
-    ob_space = single_env.observation_space
-    ac_space = single_env.action_space
+    # Create a single environment to get observation and action spaces
+    base_env = gym.make(env_name, rep=representation)
+    base_env = FlattenActionWrapper(base_env)  # Apply the wrapper here
+    ob_space = base_env.observation_space
+    ac_space = base_env.action_space
 
-    if isinstance(ac_space, gym.spaces.Discrete):
-        n_tools = int(ac_space.n / (ob_space.shape[0] * ob_space.shape[1]))
-    elif isinstance(ac_space, gym.spaces.MultiDiscrete):
-        n_tools = len(ac_space.nvec)  # For MultiDiscrete, use the length of nvec
-    elif isinstance(ac_space, gym.spaces.Box):
-        n_tools = int(np.prod(ac_space.shape) / (ob_space.shape[0] * ob_space.shape[1]))
-    else:
-        raise ValueError(f"Unsupported action space type: {type(ac_space)}")
-
-    n_tools = max(1, n_tools)
-    print(f"Calculated n_tools: {n_tools}")
     print(f"Observation space: {ob_space}")
     print(f"Action space: {ac_space}")
 
-    if representation == 'wide':
-        policy = FullyConvPolicyBigMap
-    else:
-        policy = FullyConvPolicySmallMap
-
     policy_kwargs = dict(
         features_extractor_kwargs=dict(
-            n_tools=n_tools,
             features_dim=features_dim
         )
     )
 
+    # Get the next experiment index
     n = max_exp_idx(exp_name)
     if not resume:
         n += 1
@@ -186,11 +207,17 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     if render:
         n_cpu = 1
 
+    # Define a function to create environments with the FlattenActionWrapper
+    def make_env():
+        env = gym.make(env_name, rep=representation)
+        env = FlattenActionWrapper(env)
+        return env
+
+    # Create vectorized environments
     env = make_vec_env(
-        env_name,
+        make_env,
         n_envs=n_cpu,
         monitor_dir=log_dir,
-        env_kwargs={'rep': representation}
     )
 
     model_path = os.path.join(log_dir, 'best_model.zip')
@@ -200,14 +227,15 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
         print("Successfully loaded model")
     else:
         model = PPO(
-            policy,
+            FullyConvPolicy,
             env,
             verbose=1,
             tensorboard_log=log_dir,
-            policy_kwargs=policy_kwargs
+            policy_kwargs=policy_kwargs,
+            ent_coef=0.01,  # Adjusted to encourage exploration
         )
 
-    print(f"Logging parameter count for policy: {policy.__name__}")
+    print(f"Logging parameter count for policy: {FullyConvPolicy.__name__}")
     param_count = sum(p.numel() for p in model.policy.parameters() if p.requires_grad)
     print(f"Total trainable parameters: {param_count}")
 
@@ -229,13 +257,13 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 
 ################################## MAIN ########################################
 if __name__ == '__main__':
-    game = 'sokoban' 
-    representation = 'turtle' 
+    game = 'sokoban'
+    representation = 'wide'
     experiment = None
     steps = int(1e8)
     render = False
     logging = True
-    n_cpu = 10
+    n_cpu = 50  # Adjust based on your hardware capabilities
     kwargs = {
         'resume': False,
     }

@@ -20,8 +20,8 @@ class FullyConv1Extractor(BaseFeaturesExtractor):
     """
     Equivalent to the old FullyConv1 in TensorFlow.
     """
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512, n_tools: int = 1):
-        print(f"Initializing FullyConv1Extractor with n_tools={n_tools}, features_dim={features_dim}")
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512):
+        print(f"Initializing FullyConv1Extractor with features_dim={features_dim}")
         # Ensure the observation space has the expected shape
         assert len(observation_space.shape) == 3, "Observation space must have shape (H, W, C)"
         super(FullyConv1Extractor, self).__init__(observation_space, features_dim)
@@ -33,22 +33,22 @@ class FullyConv1Extractor(BaseFeaturesExtractor):
         self.conv = nn.Sequential(
             nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),  # c1
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),               # c2
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),                # c2
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c3
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c3
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c4
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c4
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c5
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c5
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c6
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c6
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c7
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c7
             nn.ReLU(),
-            nn.Conv2d(64, n_tools, kernel_size=3, stride=1, padding=1),          # c8
+            nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),                 # c8, output channels=1
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(n_tools * observation_space.shape[0] * observation_space.shape[1], 512),  # fc1
+            nn.Linear(1 * observation_space.shape[0] * observation_space.shape[1], features_dim),  # fc1
             nn.ReLU()
         )
         self.conv.apply(init_weights)
@@ -71,8 +71,8 @@ class FullyConv2Extractor(BaseFeaturesExtractor):
     """
     Equivalent to the old FullyConv2 in TensorFlow.
     """
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512, n_tools: int = 1):
-        print(f"Initializing FullyConv2Extractor with n_tools={n_tools}, features_dim={features_dim}")
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512):
+        print(f"Initializing FullyConv2Extractor with features_dim={features_dim}")
         # Ensure the observation space has the expected shape
         assert len(observation_space.shape) == 3, "Observation space must have shape (H, W, C)"
         super(FullyConv2Extractor, self).__init__(observation_space, features_dim)
@@ -84,17 +84,17 @@ class FullyConv2Extractor(BaseFeaturesExtractor):
         self.conv_shared = nn.Sequential(
             nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),  # c1
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),               # c2
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),                # c2
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),               # c3
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),                # c3
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c4
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c4
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c5
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c5
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),               # c6
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),                # c6
             nn.ReLU(),
-            nn.Conv2d(64, n_tools, kernel_size=3, stride=1, padding=1),          # c8
+            nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),                 # c8, output channels=1
             nn.ReLU()
         )
         self.conv_shared.apply(init_weights)
@@ -124,34 +124,28 @@ class FullyConv2Extractor(BaseFeaturesExtractor):
         Returns:
             th.Tensor: Extracted features with shape (batch, features_dim)
         """
-        # Permute to (batch, channels, height, width) for PyTorch
+        # Permute observations to (batch, channels, height, width)
         observations = observations.permute(0, 3, 1, 2)
         conv_out = self.conv_shared(observations)
         return self.fc(conv_out)
 
-
-class FullyConvPolicyBigMap(ActorCriticCnnPolicy):
+class FullyConvPolicy(ActorCriticCnnPolicy):
     """
-    Custom policy for BigMap using FullyConv2Extractor.
+    Custom policy for the flattened action space.
     """
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space, lr_schedule, **kwargs):
-        super(FullyConvPolicyBigMap, self).__init__(
+    def __init__(self, observation_space: gym.Space, action_space: gym.Space, lr_schedule, *args, **kwargs):
+        # Decide which extractor to use based on observation space dimensions
+        if observation_space.shape[0] < 10:
+            features_extractor_class = FullyConv1Extractor
+            print(f"Using FullyConv1Extractor for observation space shape: {observation_space.shape}")
+        else:
+            features_extractor_class = FullyConv2Extractor
+            print(f"Using FullyConv2Extractor for observation space shape: {observation_space.shape}")
+        super(FullyConvPolicy, self).__init__(
             observation_space,
             action_space,
             lr_schedule,
-            features_extractor_class=FullyConv2Extractor,
-            **kwargs  # features_extractor_kwargs passed via policy_kwargs
+            features_extractor_class=features_extractor_class,
+            *args, **kwargs
         )
-
-class FullyConvPolicySmallMap(ActorCriticCnnPolicy):
-    """
-    Custom policy for SmallMap using FullyConv1Extractor.
-    """
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space, lr_schedule, **kwargs):
-        super(FullyConvPolicySmallMap, self).__init__(
-            observation_space,
-            action_space,
-            lr_schedule,
-            features_extractor_class=FullyConv1Extractor,
-            **kwargs  # features_extractor_kwargs passed via policy_kwargs
-        )
+        print(f"Action space size: {action_space.n}")
