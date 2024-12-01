@@ -105,6 +105,7 @@ class SokobanProblem(Problem):
             map_stats["crate"] > 0 and 
             map_stats["regions"] == 1):
             map_stats["dist-win"], map_stats["solution"] = self._run_game(map)
+        # print('map_stats', map_stats)
         return map_stats
 
     def get_reward(self, new_stats, old_stats, print_debug=False):
@@ -121,7 +122,7 @@ class SokobanProblem(Problem):
         }
         # Calculate the total reward
         # if print_debug:
-        #     print('rewards', rewards)
+            # print('rewards', rewards)
         total_reward = sum(
             rewards[key] * self._rewards[key] for key in self._rewards
         )

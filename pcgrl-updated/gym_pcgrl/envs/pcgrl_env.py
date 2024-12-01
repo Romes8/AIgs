@@ -153,6 +153,7 @@ class PcgrlEnv(gym.Env):
         old_stats = self._rep_stats
 
         # Update the current state based on the action
+        # print('action', action)
         change, x, y = self._rep.update(action)
         if change > 0:
             self._changes += change

@@ -7,64 +7,41 @@ import gym_pcgrl  # Ensure this import is correct and gym-pcgrl is installed
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 from stable_baselines3.common.env_util import make_vec_env
-from model import FullyConvPolicy
+from model import FullyConvPolicy  # Updated import
 from utils import get_exp_name, max_exp_idx  # Ensure these utilities are correctly implemented
 from PIL import Image
 import pandas as pd
 
 # FlattenActionWrapper to convert MultiDiscrete action space to Discrete
-class FlattenActionWrapper(gym.ActionWrapper):
+class FlattenActionWrapper(gym.Wrapper):
     """
     A wrapper that flattens a MultiDiscrete action space into a Discrete action space.
     """
     def __init__(self, env):
         super(FlattenActionWrapper, self).__init__(env)
         self.original_action_space = env.action_space
-        # Check if action space is MultiDiscrete
-        if isinstance(self.original_action_space, gym.spaces.MultiDiscrete):
-            # Calculate the total number of discrete actions
-            self.action_space_sizes = self.original_action_space.nvec
-            self.total_actions = int(np.prod(self.action_space_sizes))
-            self.action_space = gym.spaces.Discrete(self.total_actions)
-            self._needs_flatten = True
-            print(f"[FlattenActionWrapper] Flattening MultiDiscrete action space {self.original_action_space} to Discrete({self.total_actions})")
-        else:
-            self.action_space = self.original_action_space
-            self._needs_flatten = False
+        # Calculate the total number of discrete actions
+        self.action_space_sizes = self.original_action_space.nvec
+        self.total_actions = int(np.prod(self.action_space_sizes))
+        self.action_space = gym.spaces.Discrete(self.total_actions)
 
     def action(self, action):
         """
         Convert the flattened action into the original MultiDiscrete action.
         """
-        if self._needs_flatten:
-            unflattened_action = self.unflatten_action(action)
-            print(f"[FlattenActionWrapper] Flattened action {action} unflattened to {unflattened_action}")
-            return unflattened_action
-        else:
-            return action
+        return self.unflatten_action(action)
 
     def unflatten_action(self, index):
         action = []
-        original_index = index  # Store for logging
         for size in reversed(self.action_space_sizes):
             action.append(index % size)
             index = index // size
-        unflattened = np.array(list(reversed(action)), dtype=self.original_action_space.dtype)
-        print(f"[FlattenActionWrapper] Unflattened action {original_index} to {unflattened}")
-        return unflattened
+        return np.array(list(reversed(action)), dtype=self.original_action_space.dtype)
 
     def step(self, action):
-        if self._needs_flatten:
-            # Log the received flattened action
-            print(f"[FlattenActionWrapper] Received flattened action: {action}")
-            action = self.unflatten_action(action)
-            # Log the unflattened action
-            print(f"[FlattenActionWrapper] Passing unflattened action to env: {action}")
-        else:
-            print(f"[FlattenActionWrapper] Action does not need flattening: {action}")
-        # Since gymnasium environments return 5 values, we should expect 5
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        return obs, reward, terminated, truncated, info
+        original_action = self.unflatten_action(action)
+        obs, reward, done, truncated, info = self.env.step(original_action)
+        return obs, reward, done, truncated, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
@@ -197,7 +174,10 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     resume = kwargs.get('resume', False)
     render_freq = kwargs.get('render_freq', 10)
 
-    features_dim = 256 if representation == 'wide' else 512
+    if representation == 'wide':
+        features_dim = 256
+    else:
+        features_dim = 512
 
     # Create a single environment to get observation and action spaces
     base_env = gym.make(env_name, rep=representation)
