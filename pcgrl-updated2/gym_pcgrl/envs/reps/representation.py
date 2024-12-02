@@ -24,8 +24,6 @@ class Representation:
             raise ValueError("Probability distribution 'prob' must be provided and non-empty.")
         for y in range(height):
             for x in range(width):
-                print('prob',prob)
-                print('map', self._map)
                 prob_values = np.array(list(prob.values()))
                 self._map[y][x] = self._random.choice(len(prob), p=prob_values)             
 

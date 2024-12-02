@@ -29,16 +29,17 @@ class ToImage(gym.Wrapper):
 
     def step(self, action):
         action = action.item() if hasattr(action, "item") else action
-        obs, reward, done, info = self.env.step(action)
-        return self.transform(obs), reward, done, info
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self.transform(obs), reward, terminated, truncated, info
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        return self.transform(obs)
+        obs, info = self.env.reset(**kwargs)
+        return self.transform(obs), info
 
     def transform(self, obs):
         images = [obs[name].reshape(obs[name].shape[:2] + (-1,)) for name in self.names]
         return np.concatenate(images, axis=-1)
+
 
 class OneHotEncoding(gym.Wrapper):
     """
@@ -57,17 +58,18 @@ class OneHotEncoding(gym.Wrapper):
         )
 
     def step(self, action):
-        obs, reward, done, info = self.env.step(get_action(action))
+        obs, reward, terminated, truncated, info = self.env.step(get_action(action))
         obs[self.name] = self.to_one_hot(obs[self.name])
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
+        obs, info = self.env.reset(**kwargs)
         obs[self.name] = self.to_one_hot(obs[self.name])
-        return obs
+        return obs, info
 
     def to_one_hot(self, array):
         return np.eye(self.num_classes)[array]
+
 
 class ActionMap(gym.Wrapper):
     """
@@ -105,20 +107,21 @@ class Cropped(gym.Wrapper):
         )
 
     def step(self, action):
-        obs, reward, done, info = self.env.step(get_action(action))
+        obs, reward, terminated, truncated, info = self.env.step(get_action(action))
         obs[self.name] = self.crop(obs)
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
+        obs, info = self.env.reset(**kwargs)
         obs[self.name] = self.crop(obs)
-        return obs
+        return obs, info
 
     def crop(self, obs):
         map_ = obs[self.name]
         x, y = obs["pos"]
         padded = np.pad(map_, self.pad, constant_values=self.pad_value)
         return padded[y:y + self.crop_size, x:x + self.crop_size]
+
 
 class CroppedImagePCGRLWrapper(gym.Wrapper):
     def __init__(self, env_name, crop_size, **kwargs):
@@ -132,6 +135,31 @@ class CroppedImagePCGRLWrapper(gym.Wrapper):
 
         super().__init__(ToImage(env, ["map"]))
 
+        # Initialize episode reward tracking
+        self.episode_rewards = []
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self.episode_rewards.append(0)  # Start new episode with reward 0
+        return obs, info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        # Update the current episode reward
+        self.episode_rewards[-1] += reward
+
+        return obs, reward, terminated, truncated, info
+
+    def get_attr(self, name, indices=None):
+        if name == 'episode_rewards':
+            return self.episode_rewards
+        return super().get_attr(name, indices)
+     
+    def render(self, mode='human'):
+        print('Wrapper render called')
+        return self.env.render(mode)
+
 
 class ActionMapImagePCGRLWrapper(gym.Wrapper):
     def __init__(self, env_name, **kwargs):
@@ -144,3 +172,28 @@ class ActionMapImagePCGRLWrapper(gym.Wrapper):
         env = OneHotEncoding(env, "map")
 
         super().__init__(ToImage(env, ["map"]))
+
+        # Initialize episode reward tracking
+        self.episode_rewards = []
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self.episode_rewards.append(0)  # Start new episode with reward 0
+        return obs, info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        # Update the current episode reward
+        self.episode_rewards[-1] += reward
+
+        return obs, reward, terminated, truncated, info
+
+    def get_attr(self, name, indices=None):
+        if name == 'episode_rewards':
+            return self.episode_rewards
+        return super().get_attr(name, indices)
+    
+    def render(self, mode='human'):
+        print('Wrapper render called')
+        return self.env.render(mode)

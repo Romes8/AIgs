@@ -51,7 +51,7 @@ class PcgrlEnv(gym.Env):
         self._prob.seed(seed)
         return [seed]
 
-    def reset(self, seed=None, options=None):
+    def reset(self, *, seed=None, options=None):
         """
         Resets the environment to its initial state.
         """
@@ -64,8 +64,10 @@ class PcgrlEnv(gym.Env):
 
         observation = self._rep.get_observation()
         observation["heatmap"] = self._heatmap.copy()
-        
-        return observation
+
+        # Return observation and info
+        info = {}  # Add any relevant info to this dictionary
+        return observation, info
 
     def get_border_tile(self):
         """
@@ -110,7 +112,7 @@ class PcgrlEnv(gym.Env):
             action: The action to take.
 
         Returns:
-            observation, reward, done, info: Tuple of environment state.
+            observation, reward, terminated, truncated, info: Tuple of environment state.
         """
         self._iteration += 1
         old_stats = self._rep_stats
@@ -123,16 +125,20 @@ class PcgrlEnv(gym.Env):
         observation = self._rep.get_observation()
         observation["heatmap"] = self._heatmap.copy()
         reward = self._prob.get_reward(self._rep_stats, old_stats)
-        done = (
-            self._prob.get_episode_over(self._rep_stats, old_stats)
-            or self._changes >= self._max_changes
-            or self._iteration >= self._max_iterations
-        )
+        
+        # Terminate if max changes or iterations are exceeded
+        terminated = self._prob.get_episode_over(self._rep_stats, old_stats) or self._changes >= self._max_changes or self._iteration >= self._max_iterations
+        
+        # Truncated flag can be used based on specific conditions
+        truncated = False  # You may set this flag if there's a specific truncation condition
+        
         info = self._prob.get_debug_info(self._rep_stats, old_stats)
         info.update({"iterations": self._iteration, "changes": self._changes})
-        return observation, reward, done, info
+        
+        return observation, reward, terminated, truncated, info
 
     def render(self, mode='human'):
+        print('env render', mode)
         """
         Renders the current state of the environment.
         """

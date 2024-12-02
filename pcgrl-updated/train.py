@@ -112,39 +112,30 @@ class CustomCallback(BaseCallback):
     def _on_step(self) -> bool:
         if self.n_calls % 1000 == 0:
             print(f"[CustomCallback] Step {self.n_calls}: Checking performance for potential model save.")
-            try:
-                # Adjusted to find files with ".monitor.csv" extension
-                monitor_files = [f for f in os.listdir(self.log_dir) if f.endswith('.monitor.csv')]
-                print(f"[CustomCallback] Found monitor files: {monitor_files}")
+            # Adjusted to find files with ".monitor.csv" extension
+            monitor_files = [f for f in os.listdir(self.log_dir) if f.endswith('.monitor.csv')]
+            print(f"[CustomCallback] Found monitor files: {monitor_files}")
 
-                x, y = [], []
-                for mf in monitor_files:
-                    file_path = os.path.join(self.log_dir, mf)
-                    if os.path.isfile(file_path):
-                        try:
-                            data = pd.read_csv(file_path, skiprows=1)
-                            x += data['l'].tolist()  # 'l' is length of episode
-                            y += data['r'].tolist()  # 'r' is reward
-                        except Exception as e:
-                            print(f"[CustomCallback] Error reading {mf}: {e}")
+            x, y = [], []
+            for mf in monitor_files:
+                file_path = os.path.join(self.log_dir, mf)
+                if os.path.isfile(file_path):
+                    try:
+                        data = pd.read_csv(file_path, skiprows=1)
+                        x += data['l'].tolist()  # 'l' is length of episode
+                        y += data['r'].tolist()  # 'r' is reward
+                    except Exception as e:
+                        print(f"[CustomCallback] Error reading {mf}: {e}")
 
-                if len(y) > 0:
-                    mean_reward = np.mean(y[-100:])
-                    print(f"[CustomCallback] Best mean reward so far: {self.best_mean_reward:.2f}")
-                    print(f"[CustomCallback] Last mean reward per episode: {mean_reward:.2f}")
+            if len(y) > 0:
+                mean_reward = np.mean(y[-100:])
 
-                    # Save model if it's the best so far
-                    if mean_reward > self.best_mean_reward:
-                        self.best_mean_reward = mean_reward
-                        print("[CustomCallback] Saving new best model...")
-                        self.model.save(os.path.join(self.log_dir, 'best_model'))
-                    else:
-                        print("[CustomCallback] Saving latest model...")
-                        self.model.save(os.path.join(self.log_dir, 'latest_model'))
+                # Save model if it's the best so far
+                if mean_reward > self.best_mean_reward:
+                    self.best_mean_reward = mean_reward
+                    self.model.save(os.path.join(self.log_dir, 'best_model'))
                 else:
-                    print("[CustomCallback] No reward data found yet. Skipping model save.")
-            except Exception as e:
-                print(f"[CustomCallback] Monitor results not found or error occurred: {e}. Skipping model save.")
+                    self.model.save(os.path.join(self.log_dir, 'latest_model'))
         return True
 
 # Custom callback for rendering levels during training (optional)

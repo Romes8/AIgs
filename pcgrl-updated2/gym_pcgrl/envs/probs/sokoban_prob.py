@@ -61,7 +61,8 @@ class SokobanProblem(Problem):
         agents = [BFSAgent(), AStarAgent()]
         for agent in agents:
             for heuristic in [1, 0.5, 0]:
-                sol, sol_state, _ = agent.getSolution(state, heuristic, self._solver_power)
+                # Call getSolution without the solver_power argument
+                sol, sol_state, _ = agent.getSolution(state, maxIterations=self._solver_power)  # Adjusted here
                 if sol_state.checkWin():
                     return 0, sol
         return state.getHeuristic(), []
