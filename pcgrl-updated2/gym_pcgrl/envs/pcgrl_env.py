@@ -4,7 +4,8 @@ import numpy as np
 from gym_pcgrl.envs.probs import PROBLEMS
 from gym_pcgrl.envs.reps import REPRESENTATIONS
 from gym_pcgrl.envs.helper import get_int_prob, get_string_map
-
+import numpy as np
+import matplotlib.pyplot as plt
 
 class PcgrlEnv(gym.Env):
     """
@@ -22,6 +23,8 @@ class PcgrlEnv(gym.Env):
         """
         # Initialize problem and representation
         self._prob = PROBLEMS[prob]()
+        print('REPS', REPRESENTATIONS)
+        print('REP', rep)
         self._rep = REPRESENTATIONS[rep]()
 
         # Initialize environment parameters
@@ -117,6 +120,7 @@ class PcgrlEnv(gym.Env):
         self._iteration += 1
         old_stats = self._rep_stats
         change, x, y = self._rep.update(action)
+        # print(f"Agent moved to: ({x}, {y})")
         if change > 0:
             self._changes += change
             self._heatmap[y][x] += 1
@@ -136,24 +140,56 @@ class PcgrlEnv(gym.Env):
         info.update({"iterations": self._iteration, "changes": self._changes})
         
         return observation, reward, terminated, truncated, info
-
+    
+    #  dont remove this
+    # def render(self, mode='human'):
+    #     print('Rendering', mode)
+        
+    #     # Generate image from the environment state
+    #     img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
+    #     img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
+        
+    #     if mode == 'rgb_array':
+    #         return np.array(img)
+    #     elif mode == 'human':
+    #         # Initialize matplotlib figure and axes if not already done
+    #         if not hasattr(self, '_plt_fig'):
+    #             self._plt_fig, self._plt_ax = plt.subplots()
+    #             self._plt_img = self._plt_ax.imshow(np.array(img))
+    #             self._plt_ax.axis('off')  # Hide the axes for cleaner output
+    #             plt.ion()  # Turn on interactive mode to update the plot in real-time
+    #             plt.show()
+    #         else:
+    #             # Update the existing plot
+    #             self._plt_img.set_data(np.array(img))
+    #             self._plt_fig.canvas.draw()
+    #             self._plt_fig.canvas.flush_events()
+    #         return True  # Return True to indicate successful rendering
+    
     def render(self, mode='human'):
-        print('env render', mode)
-        """
-        Renders the current state of the environment.
-        """
+        print('Rendering', mode)
+        
+        # Generate image from the environment state
         img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
+        img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
+        
         if mode == 'rgb_array':
-            return img
+            return np.array(img)
         elif mode == 'human':
-            from gymnasium.utils import rendering
-            if self.viewer is None:
-                self.viewer = rendering.SimpleImageViewer()
-            if not hasattr(img, 'shape'):
-                img = np.array(img)
-            self.viewer.imshow(img)
-            return self.viewer.isopen
+            # Initialize matplotlib figure and axes if not already done
+            if not hasattr(self, '_plt_fig') or not plt.fignum_exists(self._plt_fig.number):
+                self._plt_fig, self._plt_ax = plt.subplots()
+                self._plt_img = self._plt_ax.imshow(np.array(img))
+                self._plt_ax.axis('off')  # Hide the axes for cleaner output
+                plt.show()  # This will block until the plot is closed by the user
+            else:
+                # Update the existing plot
+                self._plt_img.set_data(np.array(img))
+                self._plt_fig.canvas.draw()
+                self._plt_fig.canvas.flush_events()
 
+            return True  # Return True to indicate successful rendering
+        
     def close(self):
         """
         Closes the environment and releases resources.

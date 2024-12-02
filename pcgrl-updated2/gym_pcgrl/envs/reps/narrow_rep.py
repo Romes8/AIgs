@@ -11,8 +11,9 @@ class NarrowRepresentation(Representation):
     """
 
     def __init__(self):
+        print("narrow Representation Initialized") 
         super().__init__()
-        self._random_tile = True  # Whether to move randomly or sequentially
+        self._random_tile = False  # Whether to move randomly or sequentially
         self._x = 0  # Current x position
         self._y = 0  # Current y position
 
@@ -105,9 +106,19 @@ class NarrowRepresentation(Representation):
 
     def render(self, lvl_image, tile_size, border_size):
         """
-        Renders the agent's position on the map.
+        Renders the agent's position on the map with a red border.
         """
-        highlight = Image.new("RGBA", (tile_size, tile_size), (255, 0, 0, 255))
+        # Create a transparent image for the highlight (only a border)
+        highlight = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
+        
+        # Draw a red border around the tile
+        for x in range(tile_size):
+            if x < 2 or x >= tile_size - 2:  # Only draw the top and bottom borders
+                for y in range(tile_size):
+                    highlight.putpixel((x, y), (255, 0, 0, 255))  # Red color for borders
+                    highlight.putpixel((y, x), (255, 0, 0, 255))  # Red color for left/right borders
+
+        # Paste the border onto the level image at the correct position
         lvl_image.paste(
             highlight,
             (
@@ -118,4 +129,5 @@ class NarrowRepresentation(Representation):
             ),
             highlight
         )
+
         return lvl_image

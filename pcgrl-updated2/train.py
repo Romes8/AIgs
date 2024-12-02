@@ -64,7 +64,7 @@ if __name__ == '__main__':
     representation = 'narrow'
     experiment = None
     steps = 1e8
-    render = True
+    render = True # will be overriten if n_cpu > 1
     logging = True
     n_cpu = 1
     kwargs = {'resume': False}

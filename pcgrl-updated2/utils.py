@@ -4,27 +4,37 @@ import glob
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecMonitor
+from stable_baselines3.common.monitor import Monitor
+from gymnasium import Env
 import gymnasium as gym
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from gym_pcgrl import wrappers
 
-class RenderMonitor(VecMonitor):
+
+class RenderMonitor(Monitor):
     """
     Wrapper for the environment to save data and optionally render.
+    This is designed to work with both single environments and vectorized environments.
     """
     def __init__(self, env, rank, log_dir, **kwargs):
-        print('render monitor init')
         self.log_dir = log_dir
         self.rank = rank
         self.render_gui = kwargs.get('render', False)  # Ensure render is passed here
         self.render_rank = kwargs.get('render_rank', 0)
-        super().__init__(env, log_dir)
+
+        # Check if env is a VecEnv and unwrap it to pass a single gym.Env to Monitor
+        if isinstance(env, Env):  # For a single environment
+            self.single_env = env
+        elif hasattr(env, 'envs'):  # For a VecEnv (VecEnv should have 'envs' attribute)
+            self.single_env = env.envs[0]  # Unwrap to get the first environment
+        else:
+            raise ValueError("Invalid environment passed to RenderMonitor")
+
+        super().__init__(self.single_env, log_dir)
 
     def step(self, action):
-        print('render monitor step')
         if self.render_gui and self.rank == self.render_rank:
-            print('render monitor render called')
-            self.render()  # Render the environment when needed
+            self.single_env.render()  # Render the environment with the correct mode
         return super().step(action)
 
 def get_action(obs, model, deterministic=True):
@@ -35,9 +45,6 @@ def get_action(obs, model, deterministic=True):
     return action
 
 def make_env(env_name, representation, rank=0, log_dir=None, **kwargs):
-    """
-    Return a function that will initialize the environment when called.
-    """
     def _thunk():
         crop_size = kwargs.get('cropped_size', 10)
         render = kwargs.get('render', False)
@@ -46,7 +53,6 @@ def make_env(env_name, representation, rank=0, log_dir=None, **kwargs):
             if key not in ['resume', 'logging', 'representation', 'render', 'cropped_size']  # Remove unsupported arguments
         }
 
-        # Initialize the environment based on representation
         if representation == 'wide':
             env = wrappers.ActionMapImagePCGRLWrapper(env_name, **filtered_kwargs)
         else:
@@ -56,28 +62,17 @@ def make_env(env_name, representation, rank=0, log_dir=None, **kwargs):
 
     return _thunk
 
+
 def make_vec_envs(env_name, representation, log_dir, n_cpu, **kwargs):
-    """
-    Prepare a vectorized environment using multiple processes or a single thread.
-    :param env_name: (str) Environment name.
-    :param representation: (str) Representation type ('wide', 'narrow', etc.).
-    :param log_dir: (str) Directory for logs.
-    :param n_cpu: (int) Number of parallel environments.
-    :param kwargs: Additional parameters for the environment.
-    :return: (VecEnv) A vectorized environment.
-    """
     if n_cpu > 1:
         env_lst = [make_env(env_name, representation, rank=i, log_dir=log_dir, **kwargs) for i in range(n_cpu)]
-        env = SubprocVecEnv(env_lst)
+        env = SubprocVecEnv(env_lst)  # Create SubprocVecEnv first
+        # Use VecMonitor for logging in a multi-environment setup
+        env = VecMonitor(env, log_dir)  # VecMonitor will handle logging for TensorBoard
     else:
-        env = DummyVecEnv([make_env(env_name, representation, rank=0, log_dir=log_dir, **kwargs)])
-
-    # Apply RenderMonitor only if render is True
-    if kwargs.get('render', False):
-        env = RenderMonitor(env, rank=0, log_dir=log_dir, **kwargs)
-
-    # Always wrap with VecMonitor (for monitoring/logging)
-    env = VecMonitor(env, log_dir)
+        env = DummyVecEnv([make_env(env_name, representation, rank=0, log_dir=log_dir, **kwargs)])  # Create DummyVecEnv first
+        # Use RenderMonitor if there is only one environment
+        env.envs[0] = RenderMonitor(env.envs[0], rank=0, log_dir=log_dir, **kwargs)
 
     return env
 

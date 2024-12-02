@@ -68,23 +68,31 @@ class OneHotEncoding(gym.Wrapper):
         return obs, info
 
     def to_one_hot(self, array):
-        return np.eye(self.num_classes)[array]
+        one_hot = np.eye(self.num_classes)[array]
+        return one_hot
 
 
 class ActionMap(gym.Wrapper):
     """
-    Represents actions as indices in a 3D map (height, width, num_tiles).
+    Represents actions as indices in a 2D map (height, width).
     """
     def __init__(self, env, **kwargs):
         super().__init__(env)
         map_shape = env.observation_space["map"].shape
-        self.height, self.width, self.num_tiles = map_shape
+        self.height, self.width = map_shape  # Expect 2D map: (height, width)
+        self.num_tiles = env.observation_space["map"].high.max() + 1  # Get the number of tile types
         self.action_space = gym.spaces.Discrete(self.height * self.width * self.num_tiles)
 
     def step(self, action):
+        # Convert the action from a single index into (x, y, v)
         y, x, v = np.unravel_index(action, (self.height, self.width, self.num_tiles))
-        obs, reward, done, info = self.env.step((x, y, v))
-        return obs, reward, done, info
+        # print(f"Action as (x, y, v): {(x, y, v)}")  # For debugging
+
+        # Call the environment's step function
+        obs, reward, done, truncated, info = self.env.step((x, y, v))  # Expecting 5 values here
+
+        # Return the 5 values, including the new 'truncated' value
+        return obs, reward, done, truncated, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
@@ -158,7 +166,7 @@ class CroppedImagePCGRLWrapper(gym.Wrapper):
      
     def render(self, mode='human'):
         print('Wrapper render called')
-        return self.env.render(mode)
+        return self.env.render()
 
 
 class ActionMapImagePCGRLWrapper(gym.Wrapper):
@@ -195,5 +203,5 @@ class ActionMapImagePCGRLWrapper(gym.Wrapper):
         return super().get_attr(name, indices)
     
     def render(self, mode='human'):
-        print('Wrapper render called')
-        return self.env.render(mode)
+        return self.env.render()
+        
