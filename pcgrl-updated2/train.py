@@ -96,7 +96,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     callbacks = CallbackList([save_callback]) if save_callback else None
 
     # Start training
-    model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=[], progress_bar=True)
+    model.learn(total_timesteps=int(steps), tb_log_name=exp_name, callback=callbacks, progress_bar=True)
 
 if __name__ == '__main__':
     game = 'sokoban'
