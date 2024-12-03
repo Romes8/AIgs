@@ -105,7 +105,7 @@ if __name__ == '__main__':
     steps = 1e8
     render = False # will be overriten if n_cpu > 1
     logging = True
-    n_cpu = 16
+    n_cpu = 20
     kwargs = {'resume': False}
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
