@@ -13,7 +13,7 @@ class PcgrlEnv(gym.Env):
     """
     metadata = {'render_modes': ['human', 'rgb_array']}
 
-    def __init__(self, prob="sokoban", rep="narrow"):
+    def __init__(self, prob="sokoban", representation="narrow", cropped_size=10, render=False, log_dir=None):
         """
         Initializes the PCGRL environment with a specific problem and representation.
 
@@ -23,9 +23,8 @@ class PcgrlEnv(gym.Env):
         """
         # Initialize problem and representation
         self._prob = PROBLEMS[prob]()
-        print('REPS', REPRESENTATIONS)
-        print('REP', rep)
-        self._rep = REPRESENTATIONS[rep]()
+        # print('REPS', REPRESENTATIONS)
+        self._rep = REPRESENTATIONS[representation]()
 
         # Initialize environment parameters
         self._rep_stats = None
@@ -142,6 +141,29 @@ class PcgrlEnv(gym.Env):
         return observation, reward, terminated, truncated, info
     
     #  dont remove this
+    def render(self, mode='human'):
+        
+        # Generate image from the environment state
+        img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
+        img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
+        
+        if mode == 'rgb_array':
+            return np.array(img)
+        elif mode == 'human':
+            # Initialize matplotlib figure and axes if not already done
+            if not hasattr(self, '_plt_fig'):
+                self._plt_fig, self._plt_ax = plt.subplots()
+                self._plt_img = self._plt_ax.imshow(np.array(img))
+                self._plt_ax.axis('off')  # Hide the axes for cleaner output
+                plt.ion()  # Turn on interactive mode to update the plot in real-time
+                plt.show()
+            else:
+                # Update the existing plot
+                self._plt_img.set_data(np.array(img))
+                self._plt_fig.canvas.draw()
+                self._plt_fig.canvas.flush_events()
+            return True  # Return True to indicate successful rendering
+    
     # def render(self, mode='human'):
     #     print('Rendering', mode)
         
@@ -153,42 +175,18 @@ class PcgrlEnv(gym.Env):
     #         return np.array(img)
     #     elif mode == 'human':
     #         # Initialize matplotlib figure and axes if not already done
-    #         if not hasattr(self, '_plt_fig'):
+    #         if not hasattr(self, '_plt_fig') or not plt.fignum_exists(self._plt_fig.number):
     #             self._plt_fig, self._plt_ax = plt.subplots()
     #             self._plt_img = self._plt_ax.imshow(np.array(img))
     #             self._plt_ax.axis('off')  # Hide the axes for cleaner output
-    #             plt.ion()  # Turn on interactive mode to update the plot in real-time
-    #             plt.show()
+    #             plt.show()  # This will block until the plot is closed by the user
     #         else:
     #             # Update the existing plot
     #             self._plt_img.set_data(np.array(img))
     #             self._plt_fig.canvas.draw()
     #             self._plt_fig.canvas.flush_events()
-    #         return True  # Return True to indicate successful rendering
-    
-    def render(self, mode='human'):
-        print('Rendering', mode)
-        
-        # Generate image from the environment state
-        img = self._prob.render(get_string_map(self._rep._map, self._prob.get_tile_types()))
-        img = self._rep.render(img, self._prob._tile_size, self._prob._border_size).convert("RGB")
-        
-        if mode == 'rgb_array':
-            return np.array(img)
-        elif mode == 'human':
-            # Initialize matplotlib figure and axes if not already done
-            if not hasattr(self, '_plt_fig') or not plt.fignum_exists(self._plt_fig.number):
-                self._plt_fig, self._plt_ax = plt.subplots()
-                self._plt_img = self._plt_ax.imshow(np.array(img))
-                self._plt_ax.axis('off')  # Hide the axes for cleaner output
-                plt.show()  # This will block until the plot is closed by the user
-            else:
-                # Update the existing plot
-                self._plt_img.set_data(np.array(img))
-                self._plt_fig.canvas.draw()
-                self._plt_fig.canvas.flush_events()
 
-            return True  # Return True to indicate successful rendering
+    #         return True  # Return True to indicate successful rendering
         
     def close(self):
         """

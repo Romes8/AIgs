@@ -10,7 +10,7 @@ class CustomCNNExtractor(BaseFeaturesExtractor):
         n_input_channels = observation_space.shape[0]
 
         # Adjust the input size if necessary
-        self.resize = nn.Upsample(size=(32, 32), mode='bilinear', align_corners=False)
+        self.resize = nn.Upsample(size=(16, 16), mode='bilinear', align_corners=False)
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),  # Added padding

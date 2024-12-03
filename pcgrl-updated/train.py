@@ -27,7 +27,6 @@ class FlattenActionWrapper(gym.ActionWrapper):
             self.total_actions = int(np.prod(self.action_space_sizes))
             self.action_space = gym.spaces.Discrete(self.total_actions)
             self._needs_flatten = True
-            print(f"[FlattenActionWrapper] Flattening MultiDiscrete action space {self.original_action_space} to Discrete({self.total_actions})")
         else:
             self.action_space = self.original_action_space
             self._needs_flatten = False
@@ -38,7 +37,6 @@ class FlattenActionWrapper(gym.ActionWrapper):
         """
         if self._needs_flatten:
             unflattened_action = self.unflatten_action(action)
-            print(f"[FlattenActionWrapper] Flattened action {action} unflattened to {unflattened_action}")
             return unflattened_action
         else:
             return action
@@ -50,18 +48,13 @@ class FlattenActionWrapper(gym.ActionWrapper):
             action.append(index % size)
             index = index // size
         unflattened = np.array(list(reversed(action)), dtype=self.original_action_space.dtype)
-        print(f"[FlattenActionWrapper] Unflattened action {original_index} to {unflattened}")
         return unflattened
 
     def step(self, action):
         if self._needs_flatten:
             # Log the received flattened action
-            print(f"[FlattenActionWrapper] Received flattened action: {action}")
             action = self.unflatten_action(action)
             # Log the unflattened action
-            print(f"[FlattenActionWrapper] Passing unflattened action to env: {action}")
-        else:
-            print(f"[FlattenActionWrapper] Action does not need flattening: {action}")
         # Since gymnasium environments return 5 values, we should expect 5
         obs, reward, terminated, truncated, info = self.env.step(action)
         return obs, reward, terminated, truncated, info
@@ -274,7 +267,7 @@ if __name__ == '__main__':
     steps = int(1e8)
     render = False
     logging = True
-    n_cpu = 50  # Adjust based on your hardware capabilities
+    n_cpu = 5  # Adjust based on your hardware capabilities
     kwargs = {
         'resume': False,
     }
