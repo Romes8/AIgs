@@ -75,6 +75,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
     env_name = f'{game}-{representation}-v0'
     exp_name = get_exp_name(game, representation, experiment, **kwargs)
     log_dir = f'runs/{exp_name}_{max_exp_idx(exp_name) + 1}_log'
+    load_dir = f'runs/sokoban_wide_3_log'
     os.makedirs(log_dir, exist_ok=True)
 
     kwargs['render'] = render
@@ -82,7 +83,7 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
         kwargs['cropped_size'] = kwargs.get('cropped_size', 10)
 
     # Load or create a new model
-    model = load_model(log_dir) if kwargs.get('resume', False) else None
+    model = load_model(load_dir) if kwargs.get('resume', False) else None
     env = make_vec_envs(env_name, representation, log_dir, n_cpu, **kwargs)
 
     if not model:
@@ -106,6 +107,6 @@ if __name__ == '__main__':
     render = False # will be overriten if n_cpu > 1
     logging = True
     n_cpu = 20
-    kwargs = {'resume': False}
+    kwargs = {'resume': True}
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)
