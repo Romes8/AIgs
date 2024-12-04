@@ -136,7 +136,7 @@ class PcgrlEnv(gym.Env):
         truncated = False  # You may set this flag if there's a specific truncation condition
         
         info = self._prob.get_debug_info(self._rep_stats, old_stats)
-        info.update({"iterations": self._iteration, "changes": self._changes})
+        info.update({"iterations": self._iteration, "changes": self._changes, "solvable": self._prob.is_solvable(get_string_map(self._rep._map, self._prob.get_tile_types()))})
         
         return observation, reward, terminated, truncated, info
     

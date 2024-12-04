@@ -7,7 +7,7 @@ from gym_pcgrl import wrappers
 
 # Define game and representation
 game = 'sokoban'
-representation = 'narrow'  # Options: 'narrow', 'turtle', 'wide'
+representation = 'wide'  # Options: 'narrow', 'turtle', 'wide'
 
 # Create environment name
 env_name = f"{game}-{representation}-v0"
@@ -15,7 +15,7 @@ env_name = f"{game}-{representation}-v0"
 # Create experiment name and log directory
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-model_dir = f"runs/{exp_name}_{22}_log"
+model_dir = f"runs/{exp_name}_{3}_log"
 
 # Ensure the log directory exists
 if not os.path.exists(model_dir):
@@ -88,7 +88,7 @@ for i in range(num_levels):
 
     # Use the original PcgrlEnv's render method
     level = pcgrl_env.render(mode='rgb_array')  # Call PcgrlEnv's render method directly
-
+    print ('Solvable:', info['solvable'])
 
     try:
         # Ensure the array is in uint8 format

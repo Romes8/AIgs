@@ -101,6 +101,9 @@ class SokobanProblem(Problem):
 
     def get_episode_over(self, new_stats, old_stats):
         return len(new_stats["solution"]) >= self._target_solution
+    
+    def is_solvable(self, map_):
+        return len(self.get_stats(map_)["solution"]) > 0
 
     def get_debug_info(self, new_stats, old_stats):
         return {
