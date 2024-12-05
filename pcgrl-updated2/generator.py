@@ -15,7 +15,7 @@ env_name = f"{game}-{representation}-v0"
 # Create experiment name and log directory
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-model_dir = f"runs/{exp_name}_{3}_log"
+model_dir = f"runs/{exp_name}_{12}_log"
 
 # Ensure the log directory exists
 if not os.path.exists(model_dir):
@@ -54,6 +54,7 @@ pcgrl_env = env.unwrapped
 
 # Generate levels
 num_levels = 100  # Number of levels to generate
+solvable_count = 0
 for i in range(num_levels):
     # Reset environment
     reset_output = env.reset()
@@ -89,6 +90,9 @@ for i in range(num_levels):
     # Use the original PcgrlEnv's render method
     level = pcgrl_env.render(mode='rgb_array')  # Call PcgrlEnv's render method directly
     print ('Solvable:', info['solvable'])
+    if info['solvable']:
+        solvable_count += 1
+
 
     try:
         # Ensure the array is in uint8 format
@@ -102,3 +106,6 @@ for i in range(num_levels):
 
     except Exception as e:
         print(f"Failed to save level {i}: {e}")
+
+
+print('solvable levels:'+str(solvable_count)+'/'+str(num_levels)) 
