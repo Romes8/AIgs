@@ -15,8 +15,8 @@ env_name = f"{game}-{representation}-v0"
 # Create experiment name and log directory
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-model_dir = f"final_runs/{exp_name}_log"
-# model_dir = "runs/sokoban_wide_22_log"
+# model_dir = f"final_runs/{exp_name}_log"
+model_dir = "runs/sokoban_wide_24_log"
 
 # Ensure the log directory exists
 if not os.path.exists(model_dir):

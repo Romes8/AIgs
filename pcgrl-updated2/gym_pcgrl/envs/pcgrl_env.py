@@ -32,8 +32,8 @@ class PcgrlEnv(gym.Env):
         self._changes = 0
         print('prob', self._prob._width, self._prob._height)
 
-        # self._max_changes = max(int(0.3 * self._prob._width * self._prob._height), 1)
-        self._max_changes = 50
+        self._max_changes = max(int(0.3 * self._prob._width * self._prob._height), 1)
+        # self._max_changes = 50
         print('max changes', self._max_changes)
         self._max_iterations = self._max_changes * self._prob._width * self._prob._height
         self._heatmap = np.zeros((self._prob._height, self._prob._width), dtype=np.uint8)
@@ -136,8 +136,8 @@ class PcgrlEnv(gym.Env):
         observation = self._rep.get_observation()
         observation["heatmap"] = self._heatmap.copy()
         reward = self._prob.get_reward(self._rep_stats, old_stats)
-        # if change == 0:
-            # reward -= 0.5
+        if change == 0:
+            reward -= 0.5
         # print('final reward', reward)
         # Terminate if max changes or iterations are exceeded
         terminated = self._prob.get_episode_over(self._rep_stats, old_stats) or self._changes >= self._max_changes or self._iteration >= self._max_iterations
