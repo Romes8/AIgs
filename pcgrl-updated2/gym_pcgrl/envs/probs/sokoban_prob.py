@@ -97,6 +97,9 @@ class SokobanProblem(Problem):
             "dist-win": get_range_reward(new_stats["dist-win"], old_stats["dist-win"], -np.inf, -np.inf),
             "sol-length": get_range_reward(len(new_stats["solution"]), len(old_stats["solution"]), np.inf, np.inf)
         }
+        # print(f'new_stats:{new_stats}')
+        # print(f'old_stats:{old_stats}')
+        # print(f'rewards:{rewards}')
         return sum(rewards[key] * self._rewards[key] for key in rewards)
 
     def get_episode_over(self, new_stats, old_stats):

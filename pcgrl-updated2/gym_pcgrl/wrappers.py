@@ -165,7 +165,6 @@ class CroppedImagePCGRLWrapper(gym.Wrapper):
         return super().get_attr(name, indices)
      
     def render(self, mode='human'):
-        print('Wrapper render called')
         return self.env.render()
 
 
