@@ -34,7 +34,6 @@ class SokobanDataset(torch.utils.data.Dataset):
     def _preprocess_levels(self):
         processed = []
         for level in self.levels:
-            # Convert string level to tensor
             tensor_level = torch.zeros((5, *self.grid_size))
             
             rows = level.split('\n')
@@ -44,7 +43,6 @@ class SokobanDataset(torch.utils.data.Dataset):
                         channel = self.char_to_index[char]
                         tensor_level[channel, i, j] = 1.0
                         
-                        # Add floor under player, box, and goal
                         if char in '@$.':
                             tensor_level[1, i, j] = 1.0
             
@@ -76,23 +74,21 @@ class SokobanNCA(nn.Module):
         self.grid_size = (10, 10)
         self.device = device
         
-        # Enhanced perception layers
         self.perception = nn.Sequential(
             nn.Conv2d(self.input_channels, hidden_channels, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(hidden_channels, hidden_channels, 3, padding=1),  # Additional conv layer
+            nn.Conv2d(hidden_channels, hidden_channels, 3, padding=1),  
             nn.ReLU(),
             nn.Conv2d(hidden_channels, hidden_channels, 1),
             nn.ReLU()
         )
         
-        # Enhanced update layers
         self.update = nn.Sequential(
             nn.Conv2d(hidden_channels, hidden_channels, 1),
             nn.ReLU(),
             nn.Conv2d(hidden_channels, hidden_channels, 1),
             nn.ReLU(),
-            nn.Conv2d(hidden_channels, hidden_channels, 1),  # Additional layer
+            nn.Conv2d(hidden_channels, hidden_channels, 1),  
             nn.ReLU(),
             nn.Conv2d(hidden_channels, self.input_channels, 1)
         )
@@ -101,14 +97,11 @@ class SokobanNCA(nn.Module):
         batch = x.shape[0]
         
         if x is None:
-            # Initialize with more structured random noise
             x = torch.zeros(batch, self.input_channels, *self.grid_size).to(self.device)
-            # Set border walls
             x[:, 0, 0, :] = 1.0
             x[:, 0, -1, :] = 1.0
             x[:, 0, :, 0] = 1.0
             x[:, 0, :, -1] = 1.0
-            # Add some random noise to interior
             x[:, :, 1:-1, 1:-1] = torch.rand(batch, self.input_channels, 8, 8).to(self.device) * 0.1
         
         states = []
@@ -119,8 +112,7 @@ class SokobanNCA(nn.Module):
             
             x = x + dx
             
-            # Apply softmax with temperature
-            temperature = max(1.0 - step/steps, 0.5)  # Temperature annealing
+            temperature = max(1.0 - step/steps, 0.5)
             x = torch.softmax(x / temperature, dim=1)
             
             states.append(x.clone())
@@ -131,15 +123,13 @@ class SokobanLoss(nn.Module):
     def __init__(self, target_boxes=3):
         super().__init__()
         self.target_boxes = target_boxes
-        # Significantly adjust weights
         self.w_recon = 1.0
-        self.w_count = 0.1  # Increased from 0.01
+        self.w_count = 0.1  
         self.w_border = 0.5
-        self.w_diversity = 2.0  # Increased from 1.0
+        self.w_diversity = 2.0 
         
         self.eps = 1e-8
         
-        # Define target proportions more precisely
         self.target_props = {
             'walls': 0.35,    # ~35% walls
             'floors': 0.45,   # ~45% floors
@@ -166,10 +156,8 @@ class SokobanLoss(nn.Module):
         soft_x = F.softmax(x, dim=1)
         batch_size = x.shape[0]
         
-        # Calculate current proportions
         props = soft_x.mean(dim=(2,3))  # [batch_size, 5]
         
-        # Target proportions tensor
         target = torch.tensor([
             self.target_props['walls'],
             self.target_props['floors'],
@@ -178,41 +166,33 @@ class SokobanLoss(nn.Module):
             self.target_props['goals']
         ]).to(x.device).expand(batch_size, -1)
         
-        # Main diversity loss
         div_loss = F.mse_loss(props, target)
         
-        # Additional penalty for having too many walls
         wall_excess_penalty = F.relu(props[:, 0] - self.target_props['walls']).mean()
         
-        # Additional penalty for having too few floors
         floor_deficit_penalty = F.relu(self.target_props['floors'] - props[:, 1]).mean()
         
         return div_loss + wall_excess_penalty + floor_deficit_penalty
     
     def forward(self, pred, target):
-        # Basic losses
         recon_loss = F.mse_loss(pred + self.eps, target + self.eps)
         
         pred_counts = self.count_objects(pred)
         target_counts = self.count_objects(target)
         
-        # Count loss with normalized weights
         count_loss = (
             F.mse_loss(pred_counts['players'], torch.ones_like(pred_counts['players'])) * 2.0 +  # Emphasize player count
             F.mse_loss(pred_counts['boxes'], pred_counts['goals']) +
             F.mse_loss(pred_counts['boxes'], self.target_boxes * torch.ones_like(pred_counts['boxes']))
         )
         
-        # Border walls constraint
         border_loss = F.mse_loss(pred[:, 0, 0, :], torch.ones_like(pred[:, 0, 0, :])) + \
                      F.mse_loss(pred[:, 0, -1, :], torch.ones_like(pred[:, 0, -1, :])) + \
                      F.mse_loss(pred[:, 0, :, 0], torch.ones_like(pred[:, 0, :, 0])) + \
                      F.mse_loss(pred[:, 0, :, -1], torch.ones_like(pred[:, 0, :, -1]))
         
-        # Add diversity loss
         div_loss = self.diversity_loss(pred)
         
-        # Total loss
         total_loss = (
             self.w_recon * recon_loss + 
             self.w_count * count_loss + 
@@ -280,11 +260,9 @@ class SokobanTrainer:
             for k in epoch_components.keys():
                 epoch_components[k].append(components[k])
         
-        # Average losses
         avg_loss = sum(epoch_losses) / len(epoch_losses)
         avg_components = {k: sum(v) / len(v) for k, v in epoch_components.items()}
         
-        # Update history
         self.history['epoch_loss'].append(avg_loss)
         for k, v in avg_components.items():
             self.history[k].append(v)
@@ -307,11 +285,9 @@ class SokobanTrainer:
             output, states = self.model(x, steps=steps)
             return output[0], states
     
-    def visualize_sample(self, sample, threshold=0.25):  # Lowered threshold
-        # Get probabilities for each class
+    def visualize_sample(self, sample, threshold=0.25):
         probs = F.softmax(sample, dim=0)
         
-        # Create visualization with probabilities
         chars = {0: '#', 1: ' ', 2: '@', 3: '$', 4: '.'}
         level_str = ''
         debug_str = ''
@@ -326,7 +302,6 @@ class SokobanTrainer:
                 else:
                     level_str += '?'
                     
-                # Add debug info
                 debug_str += f"({i},{j}): "
                 for k in range(5):
                     debug_str += f"{chars[k]}:{probs[k,i,j]:.2f} "
@@ -339,7 +314,6 @@ class SokobanTrainer:
 def test_model(model, dataset, device):
     """Test if the model can process a single batch correctly"""
     try:
-        # Test with a small batch
         batch = torch.stack([dataset[i] for i in range(4)]).to(device)
         output, states = model(batch)
         
@@ -349,10 +323,8 @@ def test_model(model, dataset, device):
         print(f"Number of intermediate states: {len(states)}")
         print(f"State shape: {states[0].shape}")
         
-        # Verify outputs are in valid range
         print(f"\nOutput value range: [{output.min().item():.3f}, {output.max().item():.3f}]")
         
-        # Test loss calculation
         loss_fn = SokobanLoss()
         loss, components = loss_fn(output, batch)
         print("\nLoss components:", components)
@@ -364,32 +336,28 @@ def test_model(model, dataset, device):
         return False
 
 if __name__ == "__main__":
-    # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Initialize components
     model = SokobanNCA(device=device)
     dataset = SokobanDataset('data/sokoban_levels')
     trainer = SokobanTrainer(model, dataset, device)
     
     # Training loop
-    num_epochs = 500  # Increased epochs
-    save_every = 50   # Save checkpoints less frequently
-    visualize_every = 10  # Show a level every 10 epochs
+    num_epochs = 500
+    save_every = 50
+    visualize_every = 10
     
     try:
         for epoch in range(num_epochs):
             print(f"\nEpoch {epoch+1}/{num_epochs}")
             
-            # Train one epoch
             avg_loss, components = trainer.train_epoch()
             
             print(f"Average loss: {avg_loss:.4f}")
             for k, v in components.items():
                 print(f"{k}: {v:.4f}")
             
-            # Visualize progress every 10 epochs
             if (epoch + 1) % visualize_every == 0:
                 print("\n" + "="*50)
                 print(f"Generated Level at Epoch {epoch+1}:")
@@ -397,7 +365,6 @@ if __name__ == "__main__":
                 level_str, debug_str = trainer.visualize_sample(sample, threshold=0.3)
                 print(level_str)
                 
-                # Print most uncertain cells (where probabilities are close)
                 probs = F.softmax(sample, dim=0)
                 top2_values, top2_indices = torch.topk(probs, k=2, dim=0)
                 uncertainty = top2_values[0] - top2_values[1]
@@ -413,7 +380,6 @@ if __name__ == "__main__":
                 
                 print("="*50 + "\n")
             
-            # Save checkpoint at regular intervals
             if (epoch + 1) % save_every == 0:
                 trainer.save_checkpoint(epoch + 1)
         
@@ -446,7 +412,6 @@ if __name__ == "__main__":
         print("\nTraining interrupted by user. Saving final state...")
         trainer.save_checkpoint('interrupted')
         
-        # Generate 5 levels from interrupted state
         print("\nGenerating 5 levels from the current model state:")
         print("-" * 50)
         for i in range(5):
