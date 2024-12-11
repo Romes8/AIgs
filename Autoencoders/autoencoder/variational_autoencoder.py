@@ -4,8 +4,9 @@ import flax.linen as nn
 import optax
 import matplotlib.pyplot as plt
 import jumanji
+import os
 from tqdm import tqdm
-from utils import encode_multiple_levels,visualize_latent_space, assets, generate_new_levels,  resize_image, visualize_decoded_level_with_assets
+from utils import encode_multiple_levels,visualize_latent_space, assets, generate_new_levels,  resize_image, visualize_decoded_level_with_assets, generate_and_save_levels
 
 # Initialize RNG and environment
 rng = jax.random.PRNGKey(0)
@@ -131,3 +132,9 @@ train_vae(500, batch)
 # visualize_latent_space(model, params, batch, VAE.encode, is_vae=True)
 visualize_decoded_level_with_assets(model, params, encoded_levels[-1], original_shape, is_vae=True)
 generate_new_levels(model, params, latent_dim = latent_dim, method = VAE.decode)
+
+# Saving generated levels
+SAVE_PATH = "generated_levels_vae"
+os.makedirs(SAVE_PATH, exist_ok=True)
+generate_and_save_levels(model, params, latent_dim=latent_dim, num_levels=5, save_path=SAVE_PATH)
+
