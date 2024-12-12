@@ -25,7 +25,7 @@ https://github.com/amidos2006/gym-pcgrl/tree/master
 
 Required python version 3.10
 
-To run start new training install required packages, then inside of pcgrl-updated folder run
+To run new training install required packages, then inside of pcgrl-updated folder run
 `python train.py`
 you can change representation type by setting `representation` argument in main function. 
 To continue training, update `load_dir` to the path of a model you want to continue training.
