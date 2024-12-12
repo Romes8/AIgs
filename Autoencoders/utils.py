@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 import pickle
 import os
 import random as py_random
+import json
 # Define the object type mappings for encoding levels
 GRID_SIZE = (10, 10) 
 
@@ -18,6 +19,7 @@ OBJECT_TYPES = {
     'wall': 1,
     'target': 2,
     'agent': 3,
+    'box': 4
 }
 # Load the assets (images)
 assets = {
@@ -242,3 +244,31 @@ def visualize_latent_space(model, params, batch, method, num_components=2, is_va
     plt.ylabel('PCA Component 2')
     plt.legend()
     plt.show()
+
+
+def postprocess_decoded_level(decoded_output):
+    # Convert output to integer labels using argmax
+    return jnp.argmax(decoded_output, axis=-1)
+
+# Add function to save level in JSON
+def save_level_to_json(level, filename, path):
+    level_data = level.tolist()  # Convert jax array to regular list for JSON serialization
+    file_path = os.path.join(path, f"{filename}.json")
+    with open(file_path, 'w') as f:
+        json.dump(level_data, f)
+    print(f"Level saved to {file_path}")
+
+def generate_and_save_levels(model, params, latent_dim, num_levels=1, save_path="generated_levels"):
+    for i in range(num_levels):
+        rng = jax.random.PRNGKey(i)
+        # Sample a random latent vector with shape (1, latent_dim)
+        latent_vector = jax.random.normal(rng, (1, latent_dim))
+        
+        # Decode the latent vector to generate a level by applying the decoder directly
+        decoded_level = model.apply({'params': params}, latent_vector, method=model.decode)
+        
+        # Post-process the decoded level to match OBJECT_TYPES encoding
+        level = postprocess_decoded_level(decoded_level[0])  # remove batch dimension
+        
+        # Save the level to a JSON file
+        save_level_to_json(level, f"level_{i}", save_path)
