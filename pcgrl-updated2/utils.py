@@ -12,21 +12,17 @@ from gym_pcgrl import wrappers
 
 
 class RenderMonitor(Monitor):
-    """
-    Wrapper for the environment to save data and optionally render.
-    This is designed to work with both single environments and vectorized environments.
-    """
+    # Wrapper for the environment to save data and optionally render.
     def __init__(self, env, rank, log_dir, **kwargs):
         self.log_dir = log_dir
         self.rank = rank
-        self.render_gui = kwargs.get('render', False)  # Ensure render is passed here
+        self.render_gui = kwargs.get('render', False)
         self.render_rank = kwargs.get('render_rank', 0)
 
-        # Check if env is a VecEnv and unwrap it to pass a single gym.Env to Monitor
-        if isinstance(env, Env):  # For a single environment
+        if isinstance(env, Env):
             self.single_env = env
-        elif hasattr(env, 'envs'):  # For a VecEnv (VecEnv should have 'envs' attribute)
-            self.single_env = env.envs[0]  # Unwrap to get the first environment
+        elif hasattr(env, 'envs'):
+            self.single_env = env.envs[0]
         else:
             raise ValueError("Invalid environment passed to RenderMonitor")
 
@@ -34,13 +30,11 @@ class RenderMonitor(Monitor):
 
     def step(self, action):
         if self.render_gui and self.rank == self.render_rank:
-            self.single_env.render()  # Render the environment with the correct mode
+            self.single_env.render()
         return super().step(action)
 
 def get_action(obs, model, deterministic=True):
-    """
-    Get an action from the model based on the observation.
-    """
+    # Get an action from the model based on the observation.
     action, _ = model.predict(obs, deterministic=deterministic)
     return action
 
@@ -66,29 +60,22 @@ def make_env(env_name, representation, rank=0, log_dir=None, **kwargs):
 def make_vec_envs(env_name, representation, log_dir, n_cpu, **kwargs):
     if n_cpu > 1:
         env_lst = [make_env(env_name, representation, rank=i, log_dir=log_dir, **kwargs) for i in range(n_cpu)]
-        env = SubprocVecEnv(env_lst)  # Create SubprocVecEnv first
-        # Use VecMonitor for logging in a multi-environment setup
-        env = VecMonitor(env, log_dir)  # VecMonitor will handle logging for TensorBoard
+        env = SubprocVecEnv(env_lst) 
+        env = VecMonitor(env, log_dir)
     else:
         env = DummyVecEnv([make_env(env_name, representation, rank=0, log_dir=log_dir, **kwargs)])  # Create DummyVecEnv first
-        # Use RenderMonitor if there is only one environment
         env.envs[0] = RenderMonitor(env.envs[0], rank=0, log_dir=log_dir, **kwargs)
-
     return env
 
 def get_exp_name(game, representation, experiment, **kwargs):
-    """
-    Generate a unique experiment name for logging and saving.
-    """
+    # Generate a unique experiment name for logging and saving.
     exp_name = f'{game}_{representation}'
     if experiment:
         exp_name = f'{exp_name}_{experiment}'
     return exp_name
 
 def max_exp_idx(exp_name):
-    """
-    Get the maximum experiment index for a given experiment name.
-    """
+    # Get the maximum experiment index for a given experiment name.
     log_dir = os.path.join("./runs", exp_name)
     log_files = glob.glob(f'{log_dir}*')
     if not log_files:
@@ -97,9 +84,7 @@ def max_exp_idx(exp_name):
     return max(log_ns) if log_ns else 0
 
 def load_model(log_dir):
-    """
-    Load the most recent model from the specified directory.
-    """
+    # Load the most recent model from the specified directory.
     model_path = None
     for filename in ['latest_model.zip', 'best_model.zip']:
         candidate = os.path.join(log_dir, filename)

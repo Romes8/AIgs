@@ -12,11 +12,6 @@ class WideRepresentation(Representation):
         self._num_tiles = 0
 
     def reset(self, width, height, prob):
-        """
-        Resets the map and initializes the agent's position.
-        Ensures the map is populated correctly based on `prob`.
-        """
-        # Call the base class reset first to initialize _map and other variables
         super().reset(width, height, prob)
         self._x = np.random.randint(width)
         self._y = np.random.randint(height)
@@ -36,20 +31,17 @@ class WideRepresentation(Representation):
         return {"map": self._map.copy()}
 
     def update(self, action):
-        x, y, v = action  # Unpack the action tuple
+        x, y, v = action
         
-        # Update tile value at (x, y) and check if it changed
-        tile_value = v % self._num_tiles  # Use `v` as the tile value
+        tile_value = v % self._num_tiles
         change = int(self._map[y][x] != tile_value)
-        self._map[y][x] = tile_value  # Update the map
+        self._map[y][x] = tile_value
         
-        # You might want to also ensure that the agent's position is updated
-        self._x, self._y = x, y  # Update agent's position based on action (if required)
+        self._x, self._y = x, y
         
         return change, x, y
 
     def render(self, lvl_image, tile_size, border_size):
-        # Draw a marker at the last edited position
         marker = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
         for x in range(tile_size):
             marker.putpixel((0, x), (0, 255, 0, 255))  # Green color

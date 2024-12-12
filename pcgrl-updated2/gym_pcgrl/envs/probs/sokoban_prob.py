@@ -10,7 +10,6 @@ class SokobanProblem(Problem):
     """
     Sokoban problem generator to create solvable levels with specified parameters.
     """
-
     def __init__(self):
         super().__init__()
         self._width = 5
@@ -46,9 +45,6 @@ class SokobanProblem(Problem):
                     self._rewards[key] = value
 
     def _run_game(self, map_):
-        """
-        Runs the Sokoban game solver on the input map.
-        """
         tile_mapping = {"empty": " ", "solid": "#", "player": "@", "crate": "$", "target": "."}
         lvl_string = "#" * (self._width + 2) + "\n"
         for row in map_:
@@ -68,9 +64,6 @@ class SokobanProblem(Problem):
         return state.getHeuristic(), []
 
     def get_stats(self, map_):
-        """
-        Computes statistics for the map.
-        """
         map_locations = get_tile_locations(map_, self.get_tile_types())
         stats = {
             "player": calc_certain_tile(map_locations, ["player"]),
@@ -85,9 +78,6 @@ class SokobanProblem(Problem):
         return stats
 
     def get_reward(self, new_stats, old_stats):
-        """
-        Computes the reward based on changes in map statistics.
-        """
         rewards = {
             "player": get_range_reward(new_stats["player"], old_stats["player"], 1, 1),
             "crate": get_range_reward(new_stats["crate"], old_stats["crate"], 1, self._max_crates),

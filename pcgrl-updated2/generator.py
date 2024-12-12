@@ -5,24 +5,22 @@ import numpy as np
 from utils import get_exp_name, max_exp_idx
 from gym_pcgrl import wrappers
 import time
-# Define game and representation
+
+
 game = 'sokoban'
-representation = 'wide'  # Options: 'narrow', 'turtle', 'wide'
+representation = 'wide'  # 'narrow', 'turtle', 'wide'
 
-# Create environment name
 env_name = f"{game}-{representation}-v0"
-
-# Create experiment name and log directory
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
 n = max_exp_idx(exp_name)
-# model_dir = f"final_runs/{exp_name}_log"
-model_dir = "runs/sokoban_wide_24_log"
 
-# Ensure the log directory exists
+# model used for generation
+model_dir = f"final_runs/{exp_name}_log"
+# model_dir = "runs/sokoban_wide_24_log"
+
 if not os.path.exists(model_dir):
     raise FileNotFoundError(f"The log directory {model_dir} does not exist. Ensure that the model has been trained and saved correctly.")
 
-# Create the wrapped environment directly
 if representation == 'wide':
     env = wrappers.ActionMapImagePCGRLWrapper(env_name)
 elif representation == 'narrow':
@@ -41,9 +39,6 @@ if os.path.exists(model_path):
 else:
     raise FileNotFoundError(f"No model found in {model_dir}")
 
-# Verify observation space consistency
-print(f"Environment observation space: {env.observation_space}")
-
 # Create directories to save generated levels
 img_dir = f'generated_levels_{representation}/img'
 txt_dir = f'generated_levels_{representation}/txt'
@@ -53,7 +48,7 @@ os.makedirs(txt_dir, exist_ok=True)
 pcgrl_env = env.unwrapped
 
 # Generate levels
-num_levels = 50  
+num_levels = 100 
 solvable_count = 0
 for i in range(num_levels):
     # Reset environment
@@ -70,11 +65,9 @@ for i in range(num_levels):
     step = 0
     total_reward = 0
     while not (done or truncated or step >= 50):
-        # time.sleep(0.1)
-        # Predict action
+        time.sleep(0.1)
         action, _states = model.predict(obs, deterministic=False)
 
-        # Take a step in the environment
         step_output = env.step(action)
         if isinstance(step_output, tuple):
             obs, reward, done, truncated, info = step_output

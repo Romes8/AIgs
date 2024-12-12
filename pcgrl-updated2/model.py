@@ -9,11 +9,8 @@ class CustomCNNExtractor(BaseFeaturesExtractor):
         super(CustomCNNExtractor, self).__init__(observation_space, features_dim)
         n_input_channels = observation_space.shape[0]
 
-        # Adjust the input size if necessary
-        # self.resize = nn.Upsample(size=(16, 16), mode='bilinear', align_corners=False)
-
         self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),  # Added padding
+            nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -25,7 +22,6 @@ class CustomCNNExtractor(BaseFeaturesExtractor):
         # Compute the output size of the CNN layers
         with torch.no_grad():
             sample_input = torch.zeros(1, *observation_space.shape)
-            # sample_input = self.resize(sample_input)  # Apply resizing
             n_flatten = self.cnn(sample_input).shape[1]
 
         self.fc = nn.Sequential(
@@ -34,8 +30,6 @@ class CustomCNNExtractor(BaseFeaturesExtractor):
         )
 
     def forward(self, observations):
-        # Apply resizing on the observations before passing them through the CNN
-        # observations = self.resize(observations)
         return self.fc(self.cnn(observations))
 
 

@@ -4,42 +4,26 @@ from PIL import Image
 import numpy as np
 
 class TurtleRepresentation(Representation):
-    """
-    Turtle Representation for Sokoban, where the agent (turtle) moves in the map and modifies tiles.
-    """
     def __init__(self):
         super().__init__()
-        self._dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Up, Down, Left, Right
+        self._dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         self._warp = False
         self._x = 0
         self._y = 0
 
     def reset(self, width, height, prob):
-        """
-        Resets the map and the turtle's position.
-        """
         super().reset(width, height, prob)
         self._x = np.random.randint(width)
         self._y = np.random.randint(height)
 
     def adjust_param(self, **kwargs):
-        """
-        Adjusts representation-specific parameters.
-        """
         super().adjust_param(**kwargs)
         self._warp = kwargs.get('warp', self._warp)
 
     def get_action_space(self, width, height, num_tiles):
-        """
-        Action space includes directions and tile modifications.
-        """
         return spaces.Discrete(len(self._dirs) + num_tiles)
 
     def get_observation_space(self, width, height, num_tiles):
-        """
-        Observation space for the Turtle representation.
-        Includes the map and the turtle's position as separate keys in a Dict.
-        """
         return spaces.Dict({
             "pos": spaces.Box(
                 low=np.array([0, 0]), 
@@ -55,25 +39,14 @@ class TurtleRepresentation(Representation):
         })
 
     def get_observation(self):
-        """
-        Returns the current observation as a dictionary.
-        - "pos": The turtle's position.
-        - "map": The current map state.
-        """
         return {
             "pos": np.array([self._x, self._y], dtype=np.uint8),
             "map": self._map.copy()
         }
 
     def update(self, action):
-        """
-        Updates the map or moves the turtle based on the action.
-
-        - Actions less than `len(self._dirs)` move the turtle.
-        - Actions greater modify the tile under the turtle.
-        """
         change = 0
-        if action < len(self._dirs):  # Move the turtle
+        if action < len(self._dirs):
             dx, dy = self._dirs[action]
             new_x = self._x + dx
             new_y = self._y + dy
@@ -86,7 +59,7 @@ class TurtleRepresentation(Representation):
                 new_y = max(0, min(new_y, self._map.shape[0] - 1))
 
             self._x, self._y = new_x, new_y
-        else:  # Modify the tile
+        else:
             tile_value = action - len(self._dirs)
             if self._map[self._y, self._x] != tile_value:
                 self._map[self._y, self._x] = tile_value
@@ -94,9 +67,6 @@ class TurtleRepresentation(Representation):
         return change, self._x, self._y
 
     def render(self, lvl_image, tile_size, border_size):
-        """
-        Renders the turtle's position on the map.
-        """
         marker = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
         for x in range(tile_size):
             marker.putpixel((0, x), (0, 0, 255, 255))

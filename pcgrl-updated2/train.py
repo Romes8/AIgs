@@ -5,7 +5,6 @@ from stable_baselines3.common.callbacks import BaseCallback
 from utils import get_exp_name, max_exp_idx, load_model, make_vec_envs
 from model import CustomActorCriticPolicy
 from stable_baselines3.common.callbacks import CallbackList
-import pandas as pd
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -20,7 +19,6 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         self.best_mean_reward = -np.inf
 
     def _on_step(self) -> bool:
-        # Check progress every `check_freq` steps
         if self.n_calls % self.check_freq == 0:
             print('checking for save')
             rewards = self.training_env.get_attr('episode_rewards')
@@ -60,7 +58,6 @@ def main(game, representation, experiment, steps, n_cpu, render, logging, **kwar
 
     # Training callbacks
     save_callback = SaveOnBestTrainingRewardCallback(check_freq=5000, log_dir=log_dir) if logging else None
-    # Use CallbackList with a list of callbacks
     callbacks = CallbackList([save_callback]) if save_callback else None
 
     # Start training
@@ -73,7 +70,7 @@ if __name__ == '__main__':
     steps = 1e8
     render = False # will be overriten if n_cpu > 1
     logging = True
-    n_cpu = 25
+    n_cpu = 10
     kwargs = {'resume': False}
 
     main(game, representation, experiment, steps, n_cpu, render, logging, **kwargs)

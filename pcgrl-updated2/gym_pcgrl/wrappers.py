@@ -42,9 +42,7 @@ class ToImage(gym.Wrapper):
 
 
 class OneHotEncoding(gym.Wrapper):
-    """
-    Converts a specified observation into a one-hot encoded representation.
-    """
+    # Converts a specified observation into a one-hot encoded representation.
     def __init__(self, env, name, **kwargs):
         super().__init__(env)
         self.name = name
@@ -73,34 +71,25 @@ class OneHotEncoding(gym.Wrapper):
 
 
 class ActionMap(gym.Wrapper):
-    """
-    Represents actions as indices in a 2D map (height, width).
-    """
+    # Represents actions as indices in a 2D map (height, width).
     def __init__(self, env, **kwargs):
         super().__init__(env)
         map_shape = env.observation_space["map"].shape
-        self.height, self.width = map_shape  # Expect 2D map: (height, width)
-        self.num_tiles = env.observation_space["map"].high.max() + 1  # Get the number of tile types
+        self.height, self.width = map_shape
+        self.num_tiles = env.observation_space["map"].high.max() + 1
         self.action_space = gym.spaces.Discrete(self.height * self.width * self.num_tiles)
 
     def step(self, action):
-        # Convert the action from a single index into (x, y, v)
         y, x, v = np.unravel_index(action, (self.height, self.width, self.num_tiles))
-        # print(f"Action as (x, y, v): {(x, y, v)}")  # For debugging
+        obs, reward, done, truncated, info = self.env.step((x, y, v))
 
-        # Call the environment's step function
-        obs, reward, done, truncated, info = self.env.step((x, y, v))  # Expecting 5 values here
-
-        # Return the 5 values, including the new 'truncated' value
         return obs, reward, done, truncated, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
 class Cropped(gym.Wrapper):
-    """
-    Crops and centers the observation around the agent's position.
-    """
+    # Crops and centers the observation around the agent's position.
     def __init__(self, env, crop_size, pad_value, name, **kwargs):
         super().__init__(env)
         self.name = name
@@ -133,7 +122,6 @@ class Cropped(gym.Wrapper):
 
 class CroppedImagePCGRLWrapper(gym.Wrapper):
     def __init__(self, env_name, crop_size, **kwargs):
-        # Create the environment using gym.make
         env = gym.make(env_name, **kwargs)
 
         base_env = env.unwrapped
@@ -143,18 +131,16 @@ class CroppedImagePCGRLWrapper(gym.Wrapper):
 
         super().__init__(ToImage(env, ["map"]))
 
-        # Initialize episode reward tracking
         self.episode_rewards = []
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
-        self.episode_rewards.append(0)  # Start new episode with reward 0
+        self.episode_rewards.append(0)
         return obs, info
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        # Update the current episode reward
         self.episode_rewards[-1] += reward
 
         return obs, reward, terminated, truncated, info
@@ -170,7 +156,6 @@ class CroppedImagePCGRLWrapper(gym.Wrapper):
 
 class ActionMapImagePCGRLWrapper(gym.Wrapper):
     def __init__(self, env_name, **kwargs):
-        # Create the environment using gym.make
         env = gym.make(env_name, **kwargs)
 
         base_env = env.unwrapped
@@ -180,18 +165,16 @@ class ActionMapImagePCGRLWrapper(gym.Wrapper):
 
         super().__init__(ToImage(env, ["map"]))
 
-        # Initialize episode reward tracking
         self.episode_rewards = []
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
-        self.episode_rewards.append(0)  # Start new episode with reward 0
+        self.episode_rewards.append(0)
         return obs, info
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        # Update the current episode reward
         self.episode_rewards[-1] += reward
 
         return obs, reward, terminated, truncated, info

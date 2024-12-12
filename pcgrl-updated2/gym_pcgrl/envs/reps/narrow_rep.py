@@ -5,40 +5,22 @@ import numpy as np
 
 
 class NarrowRepresentation(Representation):
-    """
-    Narrow Representation for Sokoban.
-    This representation includes positional updates and map modifications.
-    """
-
     def __init__(self):
         print("narrow Representation Initialized") 
         super().__init__()
-        self._random_tile = False  # Whether to move randomly or sequentially
-        self._x = 0  # Current x position
-        self._y = 0  # Current y position
+        self._random_tile = False
+        self._x = 0
+        self._y = 0
 
     def reset(self, width, height, prob):
-        """
-        Resets the map and initializes the agent's position.
-        """
         super().reset(width, height, prob)
         self._x = np.random.randint(width)
         self._y = np.random.randint(height)
 
     def get_action_space(self, width, height, num_tiles):
-        """
-        Action space includes moving or modifying tiles.
-        - 0: No change.
-        - 1 to `num_tiles`: Change the tile at the current position.
-        """
         return spaces.Discrete(num_tiles + 1)
 
     def get_observation_space(self, width, height, num_tiles):
-        """
-        Observation space includes:
-        - `pos`: The agent's position.
-        - `map`: The current map state.
-        """
         return spaces.Dict({
             "pos": spaces.Box(
                 low=np.array([0, 0]),
@@ -54,38 +36,16 @@ class NarrowRepresentation(Representation):
         })
 
     def get_observation(self):
-        """
-        Returns the current observation as a dictionary with:
-        - `"pos"`: The agent's position.
-        - `"map"`: The current map state.
-        """
         return {
             "pos": np.array([self._x, self._y], dtype=np.uint8),
             "map": self._map.copy()
         }
 
     def adjust_param(self, **kwargs):
-        """
-        Adjusts the representation-specific parameters.
-        """
         super().adjust_param(**kwargs)
         self._random_tile = kwargs.get('random_tile', self._random_tile)
 
     def update(self, action):
-        """
-        Updates the environment state based on the action.
-
-        - `action == 0`: No change.
-        - `action > 0`: Changes the tile at the current position.
-
-        After an action:
-        - The agent moves to a new position (randomly or sequentially).
-
-        Returns:
-        - `change` (int): 1 if the map was modified, 0 otherwise.
-        - `x` (int): x-coordinate of the action.
-        - `y` (int): y-coordinate of the action.
-        """
         change = 0
         x, y = self._x, self._y
 
@@ -105,20 +65,13 @@ class NarrowRepresentation(Representation):
         return change, x, y
 
     def render(self, lvl_image, tile_size, border_size):
-        """
-        Renders the agent's position on the map with a red border.
-        """
-        # Create a transparent image for the highlight (only a border)
         highlight = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
         
-        # Draw a red border around the tile
         for x in range(tile_size):
-            if x < 2 or x >= tile_size - 2:  # Only draw the top and bottom borders
+            if x < 2 or x >= tile_size - 2:
                 for y in range(tile_size):
                     highlight.putpixel((x, y), (255, 0, 0, 255))  # Red color for borders
-                    highlight.putpixel((y, x), (255, 0, 0, 255))  # Red color for left/right borders
-
-        # Paste the border onto the level image at the correct position
+                    highlight.putpixel((y, x), (255, 0, 0, 255)) 
         lvl_image.paste(
             highlight,
             (
