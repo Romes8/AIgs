@@ -1,8 +1,8 @@
 Final project - Artificial Intelligence for Games and Simulations 2024
 
-## Generating Sokoban levels using different content generation methods
+# Generating Sokoban levels using different content generation methods
 
-# Autoencoders 
+## Autoencoders 
 
 Required python version: 3.10 or higher
 
@@ -11,14 +11,15 @@ To run autoencoder, install required packages, then inside of Autencoders folder
 or
 `python variational_autoencoder.py`
 
-# Neural Cellural Automata - NCA
+## Neural Cellural Automata - NCA
 
 Required python version 3.10 or higher
 
 To run NCA, install required packages, then inside of NCA folder run
 `python NewNCA.py`
 
-PCG-RL
+## PCG-RL
+
 Original implementation:
 https://github.com/amidos2006/gym-pcgrl/tree/master
 
