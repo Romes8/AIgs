@@ -8,7 +8,7 @@ import time
 
 
 game = 'sokoban'
-representation = 'wide'  # 'narrow', 'turtle', 'wide'
+representation = 'narrow'  # 'narrow', 'turtle', 'wide'
 
 env_name = f"{game}-{representation}-v0"
 exp_name = get_exp_name(game=game, representation=representation, experiment=None)
@@ -65,7 +65,7 @@ for i in range(num_levels):
     step = 0
     total_reward = 0
     while not (done or truncated or step >= 50):
-        time.sleep(0.1)
+        # time.sleep(0.1)
         action, _states = model.predict(obs, deterministic=False)
 
         step_output = env.step(action)
@@ -96,4 +96,4 @@ for i in range(num_levels):
     print(f"Saved level {i} as image: , total reward: {total_reward}")
 
 
-print('solvable levels:'+str(solvable_count)+'/'+str(num_levels)) 
+print('Solvable levels:'+str(solvable_count)+'/'+str(num_levels)) 

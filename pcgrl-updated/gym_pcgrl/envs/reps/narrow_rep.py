@@ -6,7 +6,6 @@ import numpy as np
 
 class NarrowRepresentation(Representation):
     def __init__(self):
-        print("narrow Representation Initialized") 
         super().__init__()
         self._random_tile = False
         self._x = 0
